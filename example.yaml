@@ -1,0 +1,74 @@
+# TinyWatcher Configuration Example
+# This file demonstrates all available configuration options
+
+# Input sources for log monitoring
+inputs:
+  # Local log files to tail
+  files:
+    - /var/log/nginx/error.log
+    - /var/log/app/application.log
+  
+  # Docker container names to monitor
+  containers:
+    - nginx
+    - api
+    - postgres
+
+# Alert destinations
+alerts:
+  # Slack incoming webhook URL
+  slack: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+  
+  # Generic webhook endpoint (receives JSON payload)
+  webhook: "https://api.example.com/alerts"
+
+# Log pattern matching rules
+rules:
+  # Rule 1: Detect 500 errors
+  - name: server_500
+    pattern: "500|Internal Server Error"
+    alert: slack
+    cooldown: 60  # seconds between alerts for this rule
+
+  # Rule 2: Database errors
+  - name: db_down
+    pattern: "OperationalError|connection refused|database.*down"
+    alert: webhook
+    cooldown: 30
+
+  # Rule 3: Authentication failures
+  - name: auth_failure
+    pattern: "authentication failed|invalid credentials"
+    alert: slack
+    cooldown: 120
+
+  # Rule 4: Out of memory
+  - name: oom
+    pattern: "out of memory|OOM|MemoryError"
+    alert: slack
+    cooldown: 300
+
+  # Rule 5: Critical errors (stdout only for testing)
+  - name: critical_errors
+    pattern: "CRITICAL|FATAL"
+    alert: stdout
+    cooldown: 10
+
+# System resource monitoring
+resources:
+  # Check interval in seconds
+  interval: 10
+  
+  # Thresholds for alerts
+  thresholds:
+    # CPU usage percentage
+    cpu_percent: 85
+    
+    # Memory usage percentage
+    memory_percent: 80
+    
+    # Disk usage percentage
+    disk_percent: 90
+    
+    # Where to send resource alerts
+    alert: slack

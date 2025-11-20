@@ -1,0 +1,26 @@
+# Minimal TinyWatcher configuration for quick testing
+
+alerts:
+  # Alerts will be printed to console
+  slack: null
+  webhook: null
+
+rules:
+  - name: error_pattern
+    pattern: "error|ERROR|Error"
+    alert: stdout
+    cooldown: 5
+
+  - name: warning_pattern
+    pattern: "warning|WARNING|Warning"
+    alert: stdout
+    cooldown: 5
+
+# Optional: Monitor system resources
+resources:
+  interval: 30
+  thresholds:
+    cpu_percent: 90
+    memory_percent: 90
+    disk_percent: 95
+    alert: stdout
