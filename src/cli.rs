@@ -22,7 +22,7 @@ pub enum Commands {
     /// Watch logs and system resources
     Watch {
         /// Configuration file path
-        #[arg(short, long)]
+        #[arg(long)]
         config: Option<PathBuf>,
 
         /// Watch specific log files
@@ -41,7 +41,26 @@ pub enum Commands {
     /// Test configuration and rules without watching
     Test {
         /// Configuration file path
-        #[arg(short, long, required = true)]
+        #[arg(long, required = true)]
         config: PathBuf,
+    },
+
+    /// Check rules against recent logs with highlighted matches
+    Check {
+        /// Configuration file path
+        #[arg(long, required = true)]
+        config: PathBuf,
+
+        /// Number of lines to tail from each source (default: 100)
+        #[arg(short = 'n', long, default_value = "100")]
+        lines: usize,
+
+        /// Watch specific log files (overrides config)
+        #[arg(short, long)]
+        file: Vec<PathBuf>,
+
+        /// Watch specific Docker containers (overrides config)
+        #[arg(short = 'c', long)]
+        container: Vec<String>,
     },
 }

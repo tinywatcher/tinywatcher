@@ -1,0 +1,13 @@
+# TinyWatcher Configuration for MySQL Container
+
+# Input sources for log monitoring
+inputs:
+  containers:
+    - tinyetl-mysql
+
+# Log pattern matching rules
+rules:
+  - name: mysql_warnings
+    pattern: "warning|WARNING|Warning"
+    alert: stdout
+    cooldown: 5

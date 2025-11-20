@@ -16,7 +16,7 @@ pub struct LogMonitor {
 struct CompiledRule {
     name: String,
     regex: Regex,
-    alert_type: crate::config::AlertType,
+    alert_names: Vec<String>,
     cooldown: u64,
 }
 
@@ -29,7 +29,7 @@ impl LogMonitor {
                     name: rule.name.clone(),
                     regex: Regex::new(&rule.pattern)
                         .context(format!("Invalid regex pattern in rule: {}", rule.name))?,
-                    alert_type: rule.alert,
+                    alert_names: rule.alert,
                     cooldown: rule.cooldown,
                 })
             })
@@ -118,12 +118,13 @@ impl LogMonitor {
             if rule.regex.is_match(line) {
                 tracing::debug!("Rule '{}' matched line: {}", rule.name, line);
                 
+                // Send alert to all configured destinations
                 if let Err(e) = self
                     .alert_manager
-                    .send_alert(&rule.alert_type, &rule.name, line, rule.cooldown)
+                    .send_alert_multi(&rule.alert_names, &rule.name, line, rule.cooldown)
                     .await
                 {
-                    tracing::error!("Failed to send alert: {}", e);
+                    tracing::error!("Failed to send alert for rule '{}': {}", rule.name, e);
                 }
             }
         }
@@ -134,7 +135,7 @@ impl LogMonitor {
             rules: self.rules.iter().map(|r| CompiledRule {
                 name: r.name.clone(),
                 regex: r.regex.clone(),
-                alert_type: r.alert_type.clone(),
+                alert_names: r.alert_names.clone(),
                 cooldown: r.cooldown,
             }).collect(),
             alert_manager: self.alert_manager.clone(),

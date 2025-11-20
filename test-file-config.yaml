@@ -1,0 +1,37 @@
+# TinyWatcher configuration for testing with simulated logs
+
+inputs:
+  files:
+    - /tmp/test-app.log
+
+# Define alert destinations
+alerts:
+  console:
+    type: stdout
+
+# Rules reference alert names
+rules:
+  - name: warnings
+    pattern: "WARNING"
+    alert: console
+    cooldown: 5
+
+  - name: errors
+    pattern: "ERROR"
+    alert: console
+    cooldown: 10
+
+  - name: critical
+    pattern: "CRITICAL|FATAL"
+    alert: console
+    cooldown: 5
+
+  - name: database_issues
+    pattern: "database|Database|connection timeout|OperationalError"
+    alert: console
+    cooldown: 15
+
+  - name: memory_issues
+    pattern: "out of memory|OOM|memory usage"
+    alert: console
+    cooldown: 20

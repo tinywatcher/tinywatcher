@@ -14,45 +14,69 @@ inputs:
     - api
     - postgres
 
-# Alert destinations
+# Alert destinations - define named alerts with their type and options
 alerts:
-  # Slack incoming webhook URL
-  slack: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+  # Console output - useful for testing
+  console:
+    type: stdout
   
-  # Generic webhook endpoint (receives JSON payload)
-  webhook: "https://api.example.com/alerts"
+  # Slack webhook for team notifications
+  team_slack:
+    type: slack
+    url: "https://hooks.slack.com/services/YOUR/TEAM/WEBHOOK"
+  
+  # Slack webhook for critical alerts only
+  oncall_slack:
+    type: slack
+    url: "https://hooks.slack.com/services/YOUR/ONCALL/WEBHOOK"
+  
+  # Generic webhook endpoint for integration with other tools
+  main_webhook:
+    type: webhook
+    url: "https://api.example.com/alerts"
+  
+  # Another webhook for specific alerts
+  pagerduty:
+    type: webhook
+    url: "https://events.pagerduty.com/v2/enqueue"
 
 # Log pattern matching rules
 rules:
-  # Rule 1: Detect 500 errors
+  # Rule 1: Detect 500 errors - notify team
   - name: server_500
     pattern: "500|Internal Server Error"
-    alert: slack
+    alert: team_slack  # references alert name, not type
     cooldown: 60  # seconds between alerts for this rule
 
-  # Rule 2: Database errors
+  # Rule 2: Database errors - critical, notify on-call
   - name: db_down
     pattern: "OperationalError|connection refused|database.*down"
-    alert: webhook
+    alert: oncall_slack
     cooldown: 30
 
-  # Rule 3: Authentication failures
+  # Rule 3: Authentication failures - send to webhook
   - name: auth_failure
     pattern: "authentication failed|invalid credentials"
-    alert: slack
+    alert: main_webhook
     cooldown: 120
 
-  # Rule 4: Out of memory
+  # Rule 4: Out of memory - page on-call AND notify team (multiple alerts!)
   - name: oom
     pattern: "out of memory|OOM|MemoryError"
-    alert: slack
+    alert: [pagerduty, oncall_slack, team_slack]  # send to multiple destinations
     cooldown: 300
 
-  # Rule 5: Critical errors (stdout only for testing)
+  # Rule 5: Critical errors - send to multiple channels
   - name: critical_errors
     pattern: "CRITICAL|FATAL"
-    alert: stdout
+    alert: [console, oncall_slack]  # array of alert names
     cooldown: 10
+  
+  # Rule 6: Warning - single alert (still works!)
+  - name: warnings
+    pattern: "WARNING|WARN"
+    alert: console  # single alert name
+    cooldown: 60
 
 # System resource monitoring
 resources:
@@ -70,5 +94,5 @@ resources:
     # Disk usage percentage
     disk_percent: 90
     
-    # Where to send resource alerts
-    alert: slack
+    # Which alert to use for resource alerts (references alert name)
+    alert: team_slack
