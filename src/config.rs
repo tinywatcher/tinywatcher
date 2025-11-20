@@ -34,6 +34,12 @@ pub struct Alert {
 pub enum AlertOptions {
     Slack { url: String },
     Webhook { url: String },
+    Email { 
+        from: String, 
+        to: Vec<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        smtp_server: Option<String>,
+    },
     Stdout {},
 }
 
@@ -43,6 +49,7 @@ pub enum AlertType {
     Stdout,
     Slack,
     Webhook,
+    Email,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

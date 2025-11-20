@@ -1,0 +1,52 @@
+# Example configuration for email alerts in TinyWatcher
+
+# Alert definitions
+alerts:
+  # Email alert using system sendmail (macOS/Linux)
+  my-email:
+    type: email
+    from: "tinywatcher@example.com"
+    to:
+      - "admin@example.com"
+      - "team@example.com"
+  
+  # Email alert with SMTP server (required on Windows)
+  # Uncomment if you need to use SMTP explicitly:
+  # my-smtp-email:
+  #   type: email
+  #   from: "tinywatcher@example.com"
+  #   to:
+  #     - "admin@example.com"
+  #   smtp_server: "localhost"
+
+  # Keep your existing alerts
+  console:
+    type: stdout
+
+# Example rules using email alerts
+rules:
+  - name: "Critical Error Alert"
+    pattern: "(?i)(error|critical|fatal)"
+    alert: my-email
+    cooldown: 300  # 5 minutes
+
+  - name: "Database Connection Failed"
+    pattern: "(?i)database.*connection.*failed"
+    alert:
+      - my-email
+      - console
+    cooldown: 600  # 10 minutes
+
+# Input sources
+inputs:
+  files:
+    - "/var/log/app.log"
+    - "/tmp/test.log"
+
+# Optional: Resource monitoring with email alerts
+resources:
+  interval: 30
+  thresholds:
+    cpu_percent: 80.0
+    memory_percent: 85.0
+    disk_percent: 90.0

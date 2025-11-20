@@ -1,3 +1,4 @@
+mod email;
 mod slack;
 mod stdout;
 mod webhook;
@@ -9,6 +10,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
 
+pub use email::EmailAlert;
 pub use slack::SlackAlert;
 pub use stdout::StdoutAlert;
 pub use webhook::WebhookAlert;

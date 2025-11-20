@@ -111,6 +111,27 @@ async fn handle_watch(
                     continue;
                 }
             }
+            AlertType::Email => {
+                #[cfg(unix)]
+                {
+                    if let AlertOptions::Email { from, to, smtp_server: _ } = &alert.options {
+                        Arc::new(alerts::EmailAlert::new(name.clone(), from.clone(), to.clone()))
+                    } else {
+                        tracing::error!("Invalid Email alert configuration for '{}'", name);
+                        continue;
+                    }
+                }
+                
+                #[cfg(not(unix))]
+                {
+                    if let AlertOptions::Email { from, to, smtp_server } = &alert.options {
+                        Arc::new(alerts::EmailAlert::new(name.clone(), from.clone(), to.clone(), smtp_server.clone()))
+                    } else {
+                        tracing::error!("Invalid Email alert configuration for '{}'", name);
+                        continue;
+                    }
+                }
+            }
         };
         
         alert_manager.register(name.clone(), handler);
@@ -217,6 +238,12 @@ fn validate_config(config: &Config) -> Result<()> {
             }
             crate::config::AlertOptions::Webhook { url } => {
                 println!(" - url: {}...", &url.chars().take(30).collect::<String>());
+            }
+            crate::config::AlertOptions::Email { from, to, smtp_server } => {
+                println!(" - from: {}, to: [{}]", from, to.join(", "));
+                if let Some(server) = smtp_server {
+                    println!("      smtp: {}", server);
+                }
             }
             crate::config::AlertOptions::Stdout {} => {
                 println!();
