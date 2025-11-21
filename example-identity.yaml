@@ -1,0 +1,57 @@
+# Example configuration showing identity management
+# This is useful when you deploy TinyWatcher on multiple servers
+
+# Set a custom identity - this will appear in all alerts
+# If omitted, hostname will be auto-detected
+identity:
+  name: my-api-server-1
+
+inputs:
+  files:
+    - /var/log/app.log
+  containers:
+    - nginx
+    - api
+
+alerts:
+  team_slack:
+    type: slack
+    url: "https://hooks.slack.com/services/YOUR/WEBHOOK"
+  
+  monitoring_webhook:
+    type: webhook
+    url: "https://api.example.com/alerts"
+  
+  email_oncall:
+    type: email
+    from: "tinywatcher@example.com"
+    to:
+      - "oncall@example.com"
+      - "team-lead@example.com"
+
+rules:
+  - name: critical_errors
+    pattern: "CRITICAL|FATAL"
+    alert: [team_slack, email_oncall]
+    cooldown: 60
+
+  - name: api_errors
+    pattern: "500|Internal Server Error"
+    sources:
+      containers: ["api"]
+    alert: monitoring_webhook
+    cooldown: 120
+
+resources:
+  interval: 30
+  thresholds:
+    cpu_percent: 85
+    memory_percent: 90
+    disk_percent: 95
+    alert: team_slack
+
+# When alerts are sent, they will include:
+# - Slack: "🚨 Alert: critical_errors | Host: my-api-server-1"
+# - Webhook JSON: {"identity": "my-api-server-1", "rule": "critical_errors", ...}
+# - Email Subject: "🚨 TinyWatcher Alert: critical_errors (my-api-server-1)"
+# - Stdout: "[timestamp] [my-api-server-1] [critical_errors] message"

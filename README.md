@@ -50,13 +50,16 @@ With TinyWatcher, you get **actionable alerts** — not dashboards.
 
 * **Named alerts** — define multiple alerts of the same type with custom names
 * **Multi-destination rules** — send one rule to multiple alert destinations
+* **Identity tracking** — all alerts include the instance/hostname for easy identification
 * stdout (immediate feedback)
 * Webhook (send JSON to any endpoint)
 * Slack (via webhook)
+* Email (via sendmail on Unix/macOS or SMTP)
 
 ### **Configuration**
 
 * **YAML-based config** — familiar and editable by anyone
+* **Identity management** — set custom instance names or auto-detect hostname
 * One file can define log inputs, resource thresholds, and alert rules
 * Support for both single alert or array of alerts per rule
 * Minimal setup: drop in your YAML and run
@@ -66,6 +69,11 @@ With TinyWatcher, you get **actionable alerts** — not dashboards.
 ## **Example YAML Configuration**
 
 ```yaml
+# Optional: Set a custom identity for this instance
+# If not set, hostname is auto-detected
+identity:
+  name: my-api-server-1
+
 inputs:
   files:
     - /var/log/nginx/error.log
@@ -189,6 +197,29 @@ rules:
 
 ---
 
+## **🏷️ Identity Management**
+
+TinyWatcher automatically identifies which server or instance sent each alert:
+
+```yaml
+# Set a custom identity for this instance
+identity:
+  name: my-api-server-1
+```
+
+If you don't set an identity, TinyWatcher will **auto-detect the hostname**.
+
+**How it appears in alerts:**
+
+- **Slack**: Includes host name in the alert message
+- **Webhook**: JSON payload includes `"identity": "my-api-server-1"`
+- **Email**: Subject and body include the hostname
+- **Stdout**: Timestamp shows `[timestamp] [identity] [rule] message`
+
+This is especially useful when monitoring multiple servers with the same config file!
+
+---
+
 ## **Usage**
 
 ### Watch files and containers in real-time:
@@ -302,10 +333,14 @@ inputs:
   containers:
     - my-app
 
+alerts:
+  console:
+    type: stdout
+
 rules:
   - name: errors
     pattern: "ERROR|FATAL"
-    alert: stdout
+    alert: console
     cooldown: 60
 ```
 
@@ -340,7 +375,9 @@ inputs:
     - /var/log/nginx/error.log
 
 alerts:
-  slack: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+  slack:
+    type: slack
+    url: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
 
 rules:
   - name: nginx_error
@@ -357,13 +394,18 @@ tinywatcher watch --config config.yaml
 
 ```yaml
 # config.yaml
+identity:
+  name: production-server-1  # Custom name for easy identification
+
 inputs:
   containers:
     - my-app
     - postgres
 
 alerts:
-  webhook: "https://api.example.com/alerts"
+  webhook:
+    type: webhook
+    url: "https://api.example.com/alerts"
 
 rules:
   - name: app_error
