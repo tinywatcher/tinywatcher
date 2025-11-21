@@ -28,6 +28,7 @@ With TinyWatcher, you get **actionable alerts** — not dashboards.
 * Tail local log files (`/var/log/nginx/error.log`)
 * Stream logs from Docker containers (`docker logs -f`)
 * **⭐ Real-time log streaming** (WebSocket, HTTP, TCP) — Azure, AWS, K8s, and more!
+* **⭐ Source-specific rules** — apply rules only to specific files, containers, or streams
 * Regex-based rules for pattern matching
 * Cooldown per rule to prevent alert spam
 
@@ -143,6 +144,48 @@ inputs:
 ```
 
 **📖 See [STREAMING.md](STREAMING.md) for complete documentation and examples!**
+
+---
+
+## **🎯 Source-Specific Rules (NEW!)**
+
+Apply rules only to specific sources for better organization and performance:
+
+```yaml
+rules:
+  # Only check API container for 500 errors
+  - name: api_500s
+    pattern: "500|Internal Server Error"
+    sources:
+      containers: ["api"]
+      streams: ["azure_app_service"]
+    alert: team_slack
+    cooldown: 60
+
+  # Only check postgres container for database errors
+  - name: postgres_errors
+    pattern: "FATAL|PANIC"
+    sources:
+      containers: ["postgres"]
+    alert: oncall_slack
+    cooldown: 30
+
+  # Only check nginx logs for auth failures
+  - name: nginx_auth_failures
+    pattern: "auth.*failed"
+    sources:
+      files: ["/var/log/nginx/error.log"]
+    alert: security_webhook
+    cooldown: 120
+
+  # Rule with no sources filter - applies to ALL inputs
+  - name: critical_errors
+    pattern: "CRITICAL"
+    alert: oncall_slack
+    cooldown: 60
+```
+
+**📖 See [SOURCE_FILTERING.md](SOURCE_FILTERING.md) for complete documentation!**
 
 ---
 

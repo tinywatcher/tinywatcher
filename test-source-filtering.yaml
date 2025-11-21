@@ -1,0 +1,33 @@
+# Simple test configuration for source filtering
+inputs:
+  files:
+    - test-file-config.yaml  # Using existing file in repo
+  containers: []
+  streams: []
+
+alerts:
+  console:
+    type: stdout
+
+rules:
+  # This rule should match all files (no source filter)
+  - name: any_yaml
+    pattern: ".*"
+    alert: console
+    cooldown: 1
+
+  # This rule should ONLY match test-file-config.yaml
+  - name: specific_file_only
+    pattern: "inputs:"
+    sources:
+      files: ["test-file-config.yaml"]
+    alert: console
+    cooldown: 1
+
+  # This rule should NOT match (wrong file path)
+  - name: wrong_file
+    pattern: ".*"
+    sources:
+      files: ["/nonexistent/file.log"]
+    alert: console
+    cooldown: 1

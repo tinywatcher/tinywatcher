@@ -1,5 +1,5 @@
 use crate::alerts::AlertManager;
-use crate::config::{Rule, StreamConfig, StreamType};
+use crate::config::{Rule, SourceType, StreamConfig, StreamType};
 use anyhow::{Context, Result};
 use regex::Regex;
 use std::sync::Arc;
@@ -16,6 +16,7 @@ struct CompiledRule {
     regex: Regex,
     alert_names: Vec<String>,
     cooldown: u64,
+    sources: Option<crate::config::RuleSources>,
 }
 
 impl StreamMonitor {
@@ -26,10 +27,11 @@ impl StreamMonitor {
                 let regex = Regex::new(&rule.pattern)
                     .with_context(|| format!("Invalid regex pattern in rule: {}", rule.name))?;
                 Ok(CompiledRule {
-                    name: rule.name,
+                    name: rule.name.clone(),
                     regex,
                     alert_names: rule.alert,
                     cooldown: rule.cooldown,
+                    sources: rule.sources,
                 })
             })
             .collect::<Result<Vec<_>>>()?;
@@ -42,7 +44,7 @@ impl StreamMonitor {
 
     pub async fn watch_stream(&self, stream_config: StreamConfig) -> Result<()> {
         let stream_name = stream_config.get_name();
-        tracing::info!("📡 Starting stream monitoring: {}", stream_name);
+        tracing::info!(" Starting stream monitoring: {}", stream_name);
 
         loop {
             let result = match stream_config.stream_type {
@@ -75,21 +77,23 @@ impl StreamMonitor {
             .await
             .context("Failed to connect to WebSocket")?;
 
-        tracing::info!("✅ Connected to WebSocket: {}", config.url);
+        tracing::info!(" Connected to WebSocket: {}", config.url);
 
         let (_, mut read) = ws_stream.split();
 
         while let Some(message) = read.next().await {
             match message {
                 Ok(Message::Text(text)) => {
+                    let source = SourceType::Stream(config.get_name());
                     for line in text.lines() {
-                        self.process_line(line, &config.get_name()).await;
+                        self.process_line(line, &source).await;
                     }
                 }
                 Ok(Message::Binary(data)) => {
                     if let Ok(text) = String::from_utf8(data) {
+                        let source = SourceType::Stream(config.get_name());
                         for line in text.lines() {
-                            self.process_line(line, &config.get_name()).await;
+                            self.process_line(line, &source).await;
                         }
                     }
                 }
@@ -155,7 +159,8 @@ impl StreamMonitor {
                 if let Ok(line) = String::from_utf8(line_bytes) {
                     let line = line.trim();
                     if !line.is_empty() {
-                        self.process_line(line, &config.get_name()).await;
+                        let source = SourceType::Stream(config.get_name());
+                        self.process_line(line, &source).await;
                     }
                 }
             }
@@ -185,26 +190,37 @@ impl StreamMonitor {
         let reader = BufReader::new(stream);
         let mut lines = reader.lines();
 
+        let source = SourceType::Stream(config.get_name());
         while let Some(line) = lines.next_line().await? {
-            self.process_line(&line, &config.get_name()).await;
+            self.process_line(&line, &source).await;
         }
 
         Err(anyhow::anyhow!("TCP stream ended"))
     }
 
-    async fn process_line(&self, line: &str, source: &str) {
+    async fn process_line(&self, line: &str, source: &SourceType) {
         for rule in &self.rules {
+            // Check if rule applies to this source
+            if !self.rule_applies_to_source(rule, source) {
+                continue;
+            }
+
             if rule.regex.is_match(line) {
+                let source_name = match source {
+                    SourceType::Stream(name) => name.clone(),
+                    _ => format!("{:?}", source),
+                };
+
                 tracing::info!(
                     "🔔 Rule '{}' matched in stream '{}': {}",
                     rule.name,
-                    source,
+                    source_name,
                     line
                 );
 
                 let message = format!(
                     "Rule '{}' triggered\nStream: {}\nLine: {}",
-                    rule.name, source, line
+                    rule.name, source_name, line
                 );
 
                 // Send alert to all configured handlers
@@ -215,6 +231,34 @@ impl StreamMonitor {
                 {
                     tracing::error!("Failed to send alert for rule '{}': {}", rule.name, e);
                 }
+            }
+        }
+    }
+
+    fn rule_applies_to_source(&self, rule: &CompiledRule, source: &SourceType) -> bool {
+        // If no sources filter is specified, rule applies to all sources
+        let Some(ref sources) = rule.sources else {
+            return true;
+        };
+
+        match source {
+            SourceType::File(path) => {
+                if sources.files.is_empty() {
+                    return false;
+                }
+                sources.files.iter().any(|f| f == path)
+            }
+            SourceType::Container(name) => {
+                if sources.containers.is_empty() {
+                    return false;
+                }
+                sources.containers.iter().any(|c| c == name)
+            }
+            SourceType::Stream(name) => {
+                if sources.streams.is_empty() {
+                    return false;
+                }
+                sources.streams.iter().any(|s| s == name)
             }
         }
     }

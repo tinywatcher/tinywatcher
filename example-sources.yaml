@@ -1,0 +1,95 @@
+# Example configuration demonstrating source-specific rule filtering
+# 
+# When a log line comes in, TinyWatcher checks:
+# 1. Which source it came from (file, container, or stream)
+# 2. Whether the rule has a sources: filter
+# 3. Apply only rules that match the source
+#
+# If a rule has no sources: filter, it applies to all inputs.
+
+inputs:
+  files:
+    - /var/log/nginx/error.log
+    - /var/log/app.log
+  containers:
+    - api
+    - postgres
+    - redis
+  streams:
+    - name: azure_app_service
+      type: http
+      url: https://example.com/logs/stream
+
+alerts:
+  team_slack:
+    type: slack
+    url: https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK
+  
+  oncall_slack:
+    type: slack
+    url: https://hooks.slack.com/services/YOUR/ONCALL/WEBHOOK
+  
+  main_webhook:
+    type: webhook
+    url: https://your-webhook.com/alerts
+  
+  console:
+    type: stdout
+
+rules:
+  # Rule that only applies to the API container
+  - name: api_500s
+    pattern: "500|Internal Server Error"
+    sources:
+      containers: ["api"]
+      streams: ["azure_app_service"]
+    alert: team_slack
+    cooldown: 60
+
+  # Rule that only applies to the postgres container
+  - name: postgres_errors
+    pattern: "FATAL|PANIC|deadlock"
+    sources:
+      containers: ["postgres"]
+    alert: oncall_slack
+    cooldown: 30
+
+  # Rule that only applies to nginx error log
+  - name: nginx_auth_failures
+    pattern: "auth.*failed"
+    sources:
+      files: ["/var/log/nginx/error.log"]
+    alert: main_webhook
+    cooldown: 120
+
+  # Rule that applies to both API container and app log file
+  - name: memory_warnings
+    pattern: "OutOfMemoryError|memory exhausted"
+    sources:
+      containers: ["api"]
+      files: ["/var/log/app.log"]
+    alert: [team_slack, console]
+    cooldown: 300
+
+  # Rule with no sources filter - applies to ALL inputs
+  - name: critical_errors
+    pattern: "CRITICAL|FATAL|PANIC"
+    alert: oncall_slack
+    cooldown: 60
+
+  # Stream-specific rule
+  - name: azure_errors
+    pattern: "Exception|Error|Failed"
+    sources:
+      streams: ["azure_app_service"]
+    alert: team_slack
+    cooldown: 120
+
+# Optional resource monitoring (applies to the host system)
+resources:
+  interval: 15
+  thresholds:
+    cpu_percent: 85
+    memory_percent: 90
+    disk_percent: 85
+    alert: oncall_slack

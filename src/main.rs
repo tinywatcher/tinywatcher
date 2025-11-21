@@ -288,6 +288,25 @@ fn validate_config(config: &Config) -> Result<()> {
         }
         println!("    Cooldown: {}s", rule.cooldown);
 
+        // Show source filtering
+        if let Some(sources) = &rule.sources {
+            println!("    Sources:");
+            if !sources.files.is_empty() {
+                println!("      Files: [{}]", sources.files.iter()
+                    .map(|f| f.display().to_string())
+                    .collect::<Vec<_>>()
+                    .join(", "));
+            }
+            if !sources.containers.is_empty() {
+                println!("      Containers: [{}]", sources.containers.join(", "));
+            }
+            if !sources.streams.is_empty() {
+                println!("      Streams: [{}]", sources.streams.join(", "));
+            }
+        } else {
+            println!("    Sources: all (no filter)");
+        }
+
         // Check if all alerts exist
         for alert_name in &rule.alert {
             if !config.alerts.contains_key(alert_name) {

@@ -1,5 +1,5 @@
 use crate::alerts::AlertManager;
-use crate::config::Rule;
+use crate::config::{Rule, SourceType};
 use anyhow::{Context, Result};
 use regex::Regex;
 use std::path::PathBuf;
@@ -18,6 +18,7 @@ struct CompiledRule {
     regex: Regex,
     alert_names: Vec<String>,
     cooldown: u64,
+    sources: Option<crate::config::RuleSources>,
 }
 
 impl LogMonitor {
@@ -31,6 +32,7 @@ impl LogMonitor {
                         .context(format!("Invalid regex pattern in rule: {}", rule.name))?,
                     alert_names: rule.alert,
                     cooldown: rule.cooldown,
+                    sources: rule.sources,
                 })
             })
             .collect::<Result<Vec<_>>>()?;
@@ -57,8 +59,9 @@ impl LogMonitor {
         let reader = BufReader::new(stdout);
         let mut lines = reader.lines();
 
+        let source = SourceType::File(path.clone());
         while let Some(line) = lines.next_line().await? {
-            self.process_line(&line).await;
+            self.process_line(&line, &source).await;
         }
 
         Ok(())
@@ -86,24 +89,27 @@ impl LogMonitor {
         let stderr_reader = BufReader::new(stderr);
 
         let self_clone = Arc::new(self.clone_monitor());
+        let source = SourceType::Container(container_name.clone());
 
         // Spawn tasks to read both streams
         let stdout_task = {
             let monitor = self_clone.clone();
+            let source = source.clone();
             tokio::spawn(async move {
                 let mut lines = stdout_reader.lines();
                 while let Ok(Some(line)) = lines.next_line().await {
-                    monitor.process_line(&line).await;
+                    monitor.process_line(&line, &source).await;
                 }
             })
         };
 
         let stderr_task = {
             let monitor = self_clone;
+            let source = source.clone();
             tokio::spawn(async move {
                 let mut lines = stderr_reader.lines();
                 while let Ok(Some(line)) = lines.next_line().await {
-                    monitor.process_line(&line).await;
+                    monitor.process_line(&line, &source).await;
                 }
             })
         };
@@ -113,10 +119,15 @@ impl LogMonitor {
         Ok(())
     }
 
-    async fn process_line(&self, line: &str) {
+    async fn process_line(&self, line: &str, source: &SourceType) {
         for rule in &self.rules {
+            // Check if rule applies to this source
+            if !self.rule_applies_to_source(rule, source) {
+                continue;
+            }
+
             if rule.regex.is_match(line) {
-                tracing::debug!("Rule '{}' matched line: {}", rule.name, line);
+                tracing::debug!("Rule '{}' matched line from {:?}: {}", rule.name, source, line);
                 
                 // Send alert to all configured destinations
                 if let Err(e) = self
@@ -130,6 +141,34 @@ impl LogMonitor {
         }
     }
 
+    fn rule_applies_to_source(&self, rule: &CompiledRule, source: &SourceType) -> bool {
+        // If no sources filter is specified, rule applies to all sources
+        let Some(ref sources) = rule.sources else {
+            return true;
+        };
+
+        match source {
+            SourceType::File(path) => {
+                if sources.files.is_empty() {
+                    return false;
+                }
+                sources.files.iter().any(|f| f == path)
+            }
+            SourceType::Container(name) => {
+                if sources.containers.is_empty() {
+                    return false;
+                }
+                sources.containers.iter().any(|c| c == name)
+            }
+            SourceType::Stream(name) => {
+                if sources.streams.is_empty() {
+                    return false;
+                }
+                sources.streams.iter().any(|s| s == name)
+            }
+        }
+    }
+
     fn clone_monitor(&self) -> Self {
         Self {
             rules: self.rules.iter().map(|r| CompiledRule {
@@ -137,6 +176,7 @@ impl LogMonitor {
                 regex: r.regex.clone(),
                 alert_names: r.alert_names.clone(),
                 cooldown: r.cooldown,
+                sources: r.sources.clone(),
             }).collect(),
             alert_manager: self.alert_manager.clone(),
         }

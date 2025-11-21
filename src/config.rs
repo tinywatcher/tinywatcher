@@ -82,6 +82,18 @@ pub struct Rule {
     pub alert: Vec<String>,  // Can be a single alert name or list of alert names
     #[serde(default = "default_cooldown")]
     pub cooldown: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sources: Option<RuleSources>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct RuleSources {
+    #[serde(default)]
+    pub containers: Vec<String>,
+    #[serde(default)]
+    pub files: Vec<PathBuf>,
+    #[serde(default)]
+    pub streams: Vec<String>,
 }
 
 // Helper function to deserialize either a string or array of strings
@@ -167,5 +179,46 @@ impl StreamConfig {
 
     pub fn get_reconnect_delay(&self) -> u64 {
         self.reconnect_delay.unwrap_or(5)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum SourceType {
+    File(PathBuf),
+    Container(String),
+    Stream(String),
+}
+
+impl Rule {
+    /// Check if this rule applies to the given source
+    /// Returns true if the rule has no sources filter (applies to all) or if the source matches
+    pub fn applies_to_source(&self, source: &SourceType) -> bool {
+        // If no sources filter is specified, rule applies to all sources
+        let Some(ref sources) = self.sources else {
+            return true;
+        };
+
+        match source {
+            SourceType::File(path) => {
+                // If no files specified in filter, don't match any files
+                if sources.files.is_empty() {
+                    return false;
+                }
+                // Check if the path matches any of the specified files
+                sources.files.iter().any(|f| f == path)
+            }
+            SourceType::Container(name) => {
+                if sources.containers.is_empty() {
+                    return false;
+                }
+                sources.containers.iter().any(|c| c == name)
+            }
+            SourceType::Stream(name) => {
+                if sources.streams.is_empty() {
+                    return false;
+                }
+                sources.streams.iter().any(|s| s == name)
+            }
+        }
     }
 }
