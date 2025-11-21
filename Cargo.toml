@@ -28,3 +28,4 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 futures = "0.3"
 async-trait = "0.1"
 lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "sendmail-transport", "builder", "tokio1-native-tls"] }
+termcolor = "1.4"

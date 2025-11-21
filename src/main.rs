@@ -14,7 +14,9 @@ use log_monitor::LogMonitor;
 use regex::Regex;
 use resource_monitor::ResourceMonitor;
 use stream_monitor::StreamMonitor;
+use std::io::Write;
 use std::sync::Arc;
+use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 #[tokio::main]
@@ -230,127 +232,263 @@ async fn handle_test(config_path: std::path::PathBuf) -> Result<()> {
 }
 
 fn validate_config(config: &Config) -> Result<()> {
+    let mut stdout = StandardStream::stdout(ColorChoice::Always);
+
     // Validate inputs
-    println!("\n📁 Inputs:");
-    println!("  Files: {}", config.inputs.files.len());
+    stdout.set_color(ColorSpec::new().set_fg(Some(Color::Cyan)).set_bold(true))?;
+    writeln!(&mut stdout, "\nINPUTS")?;
+    stdout.reset()?;
+    
+    stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+    write!(&mut stdout, "  Files: ")?;
+    stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)))?;
+    writeln!(&mut stdout, "{}", config.inputs.files.len())?;
+    stdout.reset()?;
+    
     for file in &config.inputs.files {
-        println!("    - {}", file.display());
+        stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+        writeln!(&mut stdout, "    • {}", file.display())?;
+        stdout.reset()?;
         if !file.exists() {
-            println!("      ⚠️  File does not exist!");
+            write!(&mut stdout, "    ")?;
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::Red)).set_bold(true))?;
+            write!(&mut stdout, "[ERROR]")?;
+            stdout.reset()?;
+            writeln!(&mut stdout, " File does not exist")?;
         }
     }
-    println!("  Containers: {}", config.inputs.containers.len());
+    
+    stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+    write!(&mut stdout, "  Containers: ")?;
+    stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)))?;
+    writeln!(&mut stdout, "{}", config.inputs.containers.len())?;
+    stdout.reset()?;
+    
     for container in &config.inputs.containers {
-        println!("    - {}", container);
+        stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+        writeln!(&mut stdout, "    • {}", container)?;
+        stdout.reset()?;
     }
-    println!("  Streams: {}", config.inputs.streams.len());
+    
+    stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+    write!(&mut stdout, "  Streams: ")?;
+    stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)))?;
+    writeln!(&mut stdout, "{}", config.inputs.streams.len())?;
+    stdout.reset()?;
+    
     for stream in &config.inputs.streams {
-        println!("    - {} ({:?})", stream.get_name(), stream.stream_type);
-        println!("      URL: {}", stream.url);
+        stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+        writeln!(&mut stdout, "    • {} ({:?})", stream.get_name(), stream.stream_type)?;
+        writeln!(&mut stdout, "      URL: {}", stream.url)?;
         if let Some(headers) = &stream.headers {
-            println!("      Headers: {} configured", headers.len());
+            writeln!(&mut stdout, "      Headers: {} configured", headers.len())?;
         }
-        println!("      Reconnect delay: {}s", stream.get_reconnect_delay());
+        writeln!(&mut stdout, "      Reconnect delay: {}s", stream.get_reconnect_delay())?;
+        stdout.reset()?;
     }
 
     // Validate alerts
-    println!("\n🔔 Alerts: {}", config.alerts.len());
+    stdout.set_color(ColorSpec::new().set_fg(Some(Color::Cyan)).set_bold(true))?;
+    writeln!(&mut stdout, "\nALERTS")?;
+    stdout.reset()?;
+    
+    stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+    write!(&mut stdout, "  Total: ")?;
+    stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)))?;
+    writeln!(&mut stdout, "{}", config.alerts.len())?;
+    stdout.reset()?;
+    
     for (name, alert) in &config.alerts {
-        print!("  {} ({:?})", name, alert.alert_type);
+        stdout.set_color(ColorSpec::new().set_fg(Some(Color::Yellow)))?;
+        write!(&mut stdout, "  {}", name)?;
+        stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+        write!(&mut stdout, " ({:?})", alert.alert_type)?;
+        stdout.reset()?;
+        
         match &alert.options {
             crate::config::AlertOptions::Slack { url } => {
-                println!(" - url: {}...", &url.chars().take(30).collect::<String>());
+                stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+                writeln!(&mut stdout, " → {}...", &url.chars().take(30).collect::<String>())?;
+                stdout.reset()?;
             }
             crate::config::AlertOptions::Webhook { url } => {
-                println!(" - url: {}...", &url.chars().take(30).collect::<String>());
+                stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+                writeln!(&mut stdout, " → {}...", &url.chars().take(30).collect::<String>())?;
+                stdout.reset()?;
             }
             crate::config::AlertOptions::Email { from, to, smtp_server } => {
-                println!(" - from: {}, to: [{}]", from, to.join(", "));
+                writeln!(&mut stdout)?;
+                stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+                writeln!(&mut stdout, "      From: {}", from)?;
+                writeln!(&mut stdout, "      To: [{}]", to.join(", "))?;
                 if let Some(server) = smtp_server {
-                    println!("      smtp: {}", server);
+                    writeln!(&mut stdout, "      SMTP: {}", server)?;
                 }
+                stdout.reset()?;
             }
             crate::config::AlertOptions::Stdout {} => {
-                println!();
+                writeln!(&mut stdout)?;
             }
         }
     }
 
     // Validate rules
-    println!("\n📋 Rules: {}", config.rules.len());
+    stdout.set_color(ColorSpec::new().set_fg(Some(Color::Cyan)).set_bold(true))?;
+    writeln!(&mut stdout, "\nRULES")?;
+    stdout.reset()?;
+    
+    stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+    write!(&mut stdout, "  Total: ")?;
+    stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)))?;
+    writeln!(&mut stdout, "{}", config.rules.len())?;
+    stdout.reset()?;
+    
     for rule in &config.rules {
-        println!("  - {}", rule.name);
-        println!("    Pattern: {}", rule.pattern);
+        stdout.set_color(ColorSpec::new().set_fg(Some(Color::Magenta)).set_bold(true))?;
+        writeln!(&mut stdout, "  {}", rule.name)?;
+        stdout.reset()?;
+        
+        stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+        writeln!(&mut stdout, "    Pattern: {}", rule.pattern)?;
+        stdout.reset()?;
+        
+        stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
         if rule.alert.len() == 1 {
-            println!("    Alert: {}", rule.alert[0]);
+            write!(&mut stdout, "    Alert: ")?;
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)))?;
+            writeln!(&mut stdout, "{}", rule.alert[0])?;
         } else {
-            println!("    Alerts: [{}]", rule.alert.join(", "));
+            write!(&mut stdout, "    Alerts: ")?;
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)))?;
+            writeln!(&mut stdout, "[{}]", rule.alert.join(", "))?;
         }
-        println!("    Cooldown: {}s", rule.cooldown);
+        stdout.reset()?;
+        
+        stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+        write!(&mut stdout, "    Cooldown: ")?;
+        stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)))?;
+        writeln!(&mut stdout, "{}s", rule.cooldown)?;
+        stdout.reset()?;
 
         // Show source filtering
         if let Some(sources) = &rule.sources {
-            println!("    Sources:");
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+            writeln!(&mut stdout, "    Sources:")?;
             if !sources.files.is_empty() {
-                println!("      Files: [{}]", sources.files.iter()
+                writeln!(&mut stdout, "      Files: [{}]", sources.files.iter()
                     .map(|f| f.display().to_string())
                     .collect::<Vec<_>>()
-                    .join(", "));
+                    .join(", "))?;
             }
             if !sources.containers.is_empty() {
-                println!("      Containers: [{}]", sources.containers.join(", "));
+                writeln!(&mut stdout, "      Containers: [{}]", sources.containers.join(", "))?;
             }
             if !sources.streams.is_empty() {
-                println!("      Streams: [{}]", sources.streams.join(", "));
+                writeln!(&mut stdout, "      Streams: [{}]", sources.streams.join(", "))?;
             }
+            stdout.reset()?;
         } else {
-            println!("    Sources: all (no filter)");
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+            writeln!(&mut stdout, "    Sources: all (no filter)")?;
+            stdout.reset()?;
         }
 
         // Check if all alerts exist
         for alert_name in &rule.alert {
             if !config.alerts.contains_key(alert_name) {
-                println!("    ❌ Alert '{}' not found in configuration!", alert_name);
+                write!(&mut stdout, "    ")?;
+                stdout.set_color(ColorSpec::new().set_fg(Some(Color::Red)).set_bold(true))?;
+                write!(&mut stdout, "[ERROR]")?;
+                stdout.reset()?;
+                writeln!(&mut stdout, " Alert '{}' not found in configuration", alert_name)?;
                 anyhow::bail!("Rule '{}' references undefined alert '{}'", rule.name, alert_name);
             }
         }
 
         // Test regex compilation
         match Regex::new(&rule.pattern) {
-            Ok(_) => println!("    ✅ Pattern is valid"),
+            Ok(_) => {
+                write!(&mut stdout, "    ")?;
+                stdout.set_color(ColorSpec::new().set_fg(Some(Color::Green)))?;
+                write!(&mut stdout, "[OK]")?;
+                stdout.reset()?;
+                writeln!(&mut stdout, " Pattern is valid")?;
+            }
             Err(e) => {
-                println!("    ❌ Pattern is invalid: {}", e);
+                write!(&mut stdout, "    ")?;
+                stdout.set_color(ColorSpec::new().set_fg(Some(Color::Red)).set_bold(true))?;
+                write!(&mut stdout, "[ERROR]")?;
+                stdout.reset()?;
+                writeln!(&mut stdout, " Pattern is invalid: {}", e)?;
                 anyhow::bail!("Invalid regex pattern in rule: {}", rule.name);
             }
         }
     }
 
     // Validate resource monitoring
+    stdout.set_color(ColorSpec::new().set_fg(Some(Color::Cyan)).set_bold(true))?;
+    writeln!(&mut stdout, "\nRESOURCE MONITORING")?;
+    stdout.reset()?;
+    
     if let Some(resources) = &config.resources {
-        println!("\n💻 Resource Monitoring:");
-        println!("  Interval: {}s", resources.interval);
-        println!("  Thresholds:");
+        stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+        write!(&mut stdout, "  Interval: ")?;
+        stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)))?;
+        writeln!(&mut stdout, "{}s", resources.interval)?;
+        stdout.reset()?;
+        
+        stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+        writeln!(&mut stdout, "  Thresholds:")?;
+        stdout.reset()?;
+        
         if let Some(cpu) = resources.thresholds.cpu_percent {
-            println!("    CPU: {}%", cpu);
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+            write!(&mut stdout, "    CPU: ")?;
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)))?;
+            writeln!(&mut stdout, "{}%", cpu)?;
+            stdout.reset()?;
         }
         if let Some(memory) = resources.thresholds.memory_percent {
-            println!("    Memory: {}%", memory);
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+            write!(&mut stdout, "    Memory: ")?;
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)))?;
+            writeln!(&mut stdout, "{}%", memory)?;
+            stdout.reset()?;
         }
         if let Some(disk) = resources.thresholds.disk_percent {
-            println!("    Disk: {}%", disk);
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+            write!(&mut stdout, "    Disk: ")?;
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)))?;
+            writeln!(&mut stdout, "{}%", disk)?;
+            stdout.reset()?;
         }
-        println!("    Alert: {}", resources.thresholds.alert);
+        
+        stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+        write!(&mut stdout, "    Alert: ")?;
+        stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)))?;
+        writeln!(&mut stdout, "{}", resources.thresholds.alert)?;
+        stdout.reset()?;
         
         // Check if alert exists
         if !config.alerts.contains_key(&resources.thresholds.alert) {
-            println!("    ❌ Alert '{}' not found in configuration!", resources.thresholds.alert);
+            write!(&mut stdout, "    ")?;
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::Red)).set_bold(true))?;
+            write!(&mut stdout, "[ERROR]")?;
+            stdout.reset()?;
+            writeln!(&mut stdout, " Alert '{}' not found in configuration", resources.thresholds.alert)?;
             anyhow::bail!("Resource monitoring references undefined alert '{}'", resources.thresholds.alert);
         }
     } else {
-        println!("\n Resource Monitoring: not configured");
+        stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+        writeln!(&mut stdout, "  Not configured")?;
+        stdout.reset()?;
     }
 
-    println!("\n Configuration is valid!");
+    // Final success message
+    writeln!(&mut stdout)?;
+    stdout.set_color(ColorSpec::new().set_fg(Some(Color::Green)).set_bold(true))?;
+    writeln!(&mut stdout, "Configuration is valid!")?;
+    stdout.reset()?;
 
     Ok(())
 }
