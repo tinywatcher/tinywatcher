@@ -21,9 +21,9 @@ impl SlackAlert {
 
 #[async_trait]
 impl AlertHandler for SlackAlert {
-    async fn send(&self, rule_name: &str, message: &str) -> Result<()> {
+    async fn send(&self, identity: &str, rule_name: &str, message: &str) -> Result<()> {
         let payload = json!({
-            "text": format!("🚨 *Alert: {}*\n```{}```", rule_name, message),
+            "text": format!("🚨 *Alert: {}*\n*Host:* `{}`\n```{}```", rule_name, identity, message),
             "username": "TinyWatcher",
             "icon_emoji": ":eyes:"
         });
@@ -34,7 +34,7 @@ impl AlertHandler for SlackAlert {
             .send()
             .await?;
         
-        tracing::info!("Sent Slack alert '{}' for rule: {}", self.name, rule_name);
+        tracing::info!("Sent Slack alert '{}' for rule: {} (from {})", self.name, rule_name, identity);
         Ok(())
     }
 

@@ -18,8 +18,8 @@ pub use webhook::WebhookAlert;
 /// Trait that all alert handlers must implement
 #[async_trait]
 pub trait AlertHandler: Send + Sync {
-    /// Send an alert with the given rule name and message
-    async fn send(&self, rule_name: &str, message: &str) -> Result<()>;
+    /// Send an alert with the given identity, rule name, and message
+    async fn send(&self, identity: &str, rule_name: &str, message: &str) -> Result<()>;
     
     /// Get a human-readable name for this alert handler
     fn name(&self) -> &str;
@@ -29,13 +29,15 @@ pub trait AlertHandler: Send + Sync {
 pub struct AlertManager {
     handlers: HashMap<String, Arc<dyn AlertHandler>>,
     cooldowns: Arc<Mutex<HashMap<String, Instant>>>,
+    identity: String,
 }
 
 impl AlertManager {
-    pub fn new() -> Self {
+    pub fn new(identity: String) -> Self {
         Self {
             handlers: HashMap::new(),
             cooldowns: Arc::new(Mutex::new(HashMap::new())),
+            identity,
         }
     }
 
@@ -62,7 +64,7 @@ impl AlertManager {
             anyhow::anyhow!("Alert '{}' not found in configuration", alert_name)
         })?;
 
-        handler.send(rule_name, message).await
+        handler.send(&self.identity, rule_name, message).await
     }
 
     /// Send an alert to multiple handlers
@@ -84,7 +86,7 @@ impl AlertManager {
                 anyhow::anyhow!("Alert '{}' not found in configuration", alert_name)
             })?;
 
-            if let Err(e) = handler.send(rule_name, message).await {
+            if let Err(e) = handler.send(&self.identity, rule_name, message).await {
                 tracing::error!("Failed to send alert to '{}': {}", alert_name, e);
             }
         }

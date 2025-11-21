@@ -15,9 +15,9 @@ impl StdoutAlert {
 
 #[async_trait]
 impl AlertHandler for StdoutAlert {
-    async fn send(&self, rule_name: &str, message: &str) -> Result<()> {
+    async fn send(&self, identity: &str, rule_name: &str, message: &str) -> Result<()> {
         let timestamp = Utc::now().format("%Y-%m-%d %H:%M:%S");
-        println!("[{}] ALERT [{}]: {}", timestamp, rule_name, message);
+        println!("[{}] ALERT [{}] [{}]: {}", timestamp, identity, rule_name, message);
         Ok(())
     }
 

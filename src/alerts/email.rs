@@ -52,20 +52,22 @@ impl EmailAlert {
 
 #[async_trait]
 impl AlertHandler for EmailAlert {
-    async fn send(&self, rule_name: &str, message: &str) -> Result<()> {
+    async fn send(&self, identity: &str, rule_name: &str, message: &str) -> Result<()> {
         tracing::info!(
             "Email alert '{}' triggered for rule '{}' - sending to {} recipient(s)",
             self.name, rule_name, self.to.len()
         );
         
-        let subject = format!("🚨 TinyWatcher Alert: {}", rule_name);
+        let subject = format!("🚨 TinyWatcher Alert: {} ({})", rule_name, identity);
         let body = format!(
             "TinyWatcher Alert\n\
              =================\n\n\
+             Host: {}\n\
              Rule: {}\n\
              Time: {}\n\n\
              Message:\n\
              {}\n",
+            identity,
             rule_name,
             chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
             message

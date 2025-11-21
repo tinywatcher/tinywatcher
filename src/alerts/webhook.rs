@@ -22,8 +22,9 @@ impl WebhookAlert {
 
 #[async_trait]
 impl AlertHandler for WebhookAlert {
-    async fn send(&self, rule_name: &str, message: &str) -> Result<()> {
+    async fn send(&self, identity: &str, rule_name: &str, message: &str) -> Result<()> {
         let payload = json!({
+            "identity": identity,
             "rule": rule_name,
             "message": message,
             "timestamp": Utc::now().to_rfc3339(),
@@ -36,7 +37,7 @@ impl AlertHandler for WebhookAlert {
             .send()
             .await?;
         
-        tracing::info!("Sent webhook alert '{}' for rule: {}", self.name, rule_name);
+        tracing::info!("Sent webhook alert '{}' for rule: {} (from {})", self.name, rule_name, identity);
         Ok(())
     }
 

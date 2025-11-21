@@ -11,6 +11,33 @@ pub struct Config {
     #[serde(default)]
     pub rules: Vec<Rule>,
     pub resources: Option<ResourceConfig>,
+    #[serde(default)]
+    pub identity: Identity,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct Identity {
+    pub name: Option<String>,
+}
+
+impl Default for Identity {
+    fn default() -> Self {
+        Self {
+            name: None,
+        }
+    }
+}
+
+impl Identity {
+    /// Get the identity name, using hostname as fallback if not specified
+    pub fn get_name(&self) -> String {
+        self.name.clone().unwrap_or_else(|| {
+            hostname::get()
+                .ok()
+                .and_then(|h| h.into_string().ok())
+                .unwrap_or_else(|| "unknown".to_string())
+        })
+    }
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]

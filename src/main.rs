@@ -75,6 +75,7 @@ async fn handle_watch(
             alerts: std::collections::HashMap::new(),
             rules: Vec::new(),
             resources: None,
+            identity: config::Identity::default(),
         }
     };
 
@@ -90,10 +91,11 @@ async fn handle_watch(
         anyhow::bail!("Nothing to watch! Provide --file, --container, --stream, or configure resources.");
     }
 
-    tracing::info!("🚀 Starting TinyWatcher...");
+    let identity = config.identity.get_name();
+    tracing::info!("🚀 Starting TinyWatcher (identity: {})...", identity);
 
     // Create alert manager and register handlers
-    let mut alert_manager = AlertManager::new();
+    let mut alert_manager = AlertManager::new(identity);
     
     for (name, alert) in &config.alerts {
         use crate::config::{AlertOptions, AlertType};
@@ -233,6 +235,23 @@ async fn handle_test(config_path: std::path::PathBuf) -> Result<()> {
 
 fn validate_config(config: &Config) -> Result<()> {
     let mut stdout = StandardStream::stdout(ColorChoice::Always);
+
+    // Show identity
+    stdout.set_color(ColorSpec::new().set_fg(Some(Color::Cyan)).set_bold(true))?;
+    writeln!(&mut stdout, "\nIDENTITY")?;
+    stdout.reset()?;
+    
+    stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+    write!(&mut stdout, "  Name: ")?;
+    stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)))?;
+    writeln!(&mut stdout, "{}", config.identity.get_name())?;
+    stdout.reset()?;
+    
+    if config.identity.name.is_none() {
+        stdout.set_color(ColorSpec::new().set_fg(Some(Color::Yellow)).set_dimmed(true))?;
+        writeln!(&mut stdout, "  (auto-detected from hostname)")?;
+        stdout.reset()?;
+    }
 
     // Validate inputs
     stdout.set_color(ColorSpec::new().set_fg(Some(Color::Cyan)).set_bold(true))?;
