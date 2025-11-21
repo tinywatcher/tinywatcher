@@ -19,6 +19,28 @@ pub struct Inputs {
     pub files: Vec<PathBuf>,
     #[serde(default)]
     pub containers: Vec<String>,
+    #[serde(default)]
+    pub streams: Vec<StreamConfig>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct StreamConfig {
+    pub name: Option<String>,
+    #[serde(rename = "type")]
+    pub stream_type: StreamType,
+    pub url: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub headers: Option<HashMap<String, String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reconnect_delay: Option<u64>,  // seconds
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum StreamType {
+    Websocket,
+    Http,
+    Tcp,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -133,5 +155,17 @@ impl Config {
         if !containers.is_empty() {
             self.inputs.containers.extend(containers);
         }
+    }
+}
+
+impl StreamConfig {
+    pub fn get_name(&self) -> String {
+        self.name.clone().unwrap_or_else(|| {
+            format!("{:?}:{}", self.stream_type, self.url)
+        })
+    }
+
+    pub fn get_reconnect_delay(&self) -> u64 {
+        self.reconnect_delay.unwrap_or(5)
     }
 }

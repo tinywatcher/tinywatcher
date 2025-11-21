@@ -27,6 +27,7 @@ With TinyWatcher, you get **actionable alerts** — not dashboards.
 
 * Tail local log files (`/var/log/nginx/error.log`)
 * Stream logs from Docker containers (`docker logs -f`)
+* **⭐ Real-time log streaming** (WebSocket, HTTP, TCP) — Azure, AWS, K8s, and more!
 * Regex-based rules for pattern matching
 * Cooldown per rule to prevent alert spam
 
@@ -113,6 +114,35 @@ resources:
     disk_percent: 90
     alert: team_slack  # references alert name
 ```
+
+---
+
+## **🌐 Log Streaming (NEW!)**
+
+TinyWatcher now supports real-time log streaming from cloud services and custom endpoints!
+
+```yaml
+inputs:
+  streams:
+    # Azure App Service logs
+    - name: azure_webapp
+      type: websocket
+      url: "wss://myapp.scm.azurewebsites.net/api/logstream/application"
+      headers:
+        Authorization: "Bearer YOUR_TOKEN"
+    
+    # Kubernetes pod logs
+    - name: k8s_pod
+      type: websocket
+      url: "wss://k8s-api:443/api/v1/namespaces/default/pods/my-pod/log?follow=true"
+    
+    # Custom TCP syslog
+    - name: syslog
+      type: tcp
+      url: "localhost:514"
+```
+
+**📖 See [STREAMING.md](STREAMING.md) for complete documentation and examples!**
 
 ---
 

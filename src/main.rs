@@ -3,6 +3,7 @@ mod cli;
 mod config;
 mod log_monitor;
 mod resource_monitor;
+mod stream_monitor;
 
 use alerts::AlertManager;
 use anyhow::{Context, Result};
@@ -12,6 +13,7 @@ use config::Config;
 use log_monitor::LogMonitor;
 use regex::Regex;
 use resource_monitor::ResourceMonitor;
+use stream_monitor::StreamMonitor;
 use std::sync::Arc;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
@@ -80,9 +82,10 @@ async fn handle_watch(
     // Check if we have anything to watch
     if config.inputs.files.is_empty()
         && config.inputs.containers.is_empty()
+        && config.inputs.streams.is_empty()
         && (no_resources || config.resources.is_none())
     {
-        anyhow::bail!("Nothing to watch! Provide --file, --container, or configure resources.");
+        anyhow::bail!("Nothing to watch! Provide --file, --container, --stream, or configure resources.");
     }
 
     tracing::info!("🚀 Starting TinyWatcher...");
@@ -170,7 +173,20 @@ async fn handle_watch(
                 }
             }));
         }
-    } else if !config.inputs.files.is_empty() || !config.inputs.containers.is_empty() {
+
+        // Watch streams
+        for stream_config in config.inputs.streams.clone() {
+            let stream_monitor = Arc::new(
+                StreamMonitor::new(config.rules.clone(), alert_manager.clone())
+                    .context("Failed to create stream monitor")?,
+            );
+            tasks.push(tokio::spawn(async move {
+                if let Err(e) = stream_monitor.watch_stream(stream_config.clone()).await {
+                    tracing::error!("Error watching stream {}: {}", stream_config.get_name(), e);
+                }
+            }));
+        }
+    } else if !config.inputs.files.is_empty() || !config.inputs.containers.is_empty() || !config.inputs.streams.is_empty() {
         tracing::warn!("Log sources configured but no rules defined!");
         tracing::info!("Tip: Add a --config file with rules, or the logs will be monitored but no alerts will be triggered.");
     }
@@ -226,6 +242,15 @@ fn validate_config(config: &Config) -> Result<()> {
     println!("  Containers: {}", config.inputs.containers.len());
     for container in &config.inputs.containers {
         println!("    - {}", container);
+    }
+    println!("  Streams: {}", config.inputs.streams.len());
+    for stream in &config.inputs.streams {
+        println!("    - {} ({:?})", stream.get_name(), stream.stream_type);
+        println!("      URL: {}", stream.url);
+        if let Some(headers) = &stream.headers {
+            println!("      Headers: {} configured", headers.len());
+        }
+        println!("      Reconnect delay: {}s", stream.get_reconnect_delay());
     }
 
     // Validate alerts
