@@ -1,6 +1,7 @@
 mod alerts;
 mod cli;
 mod config;
+mod daemon;
 mod log_monitor;
 mod resource_monitor;
 mod stream_monitor;
@@ -54,6 +55,18 @@ async fn main() -> Result<()> {
             container,
         } => {
             handle_check(config, lines, file, container).await?;
+        }
+        Commands::Start { config } => {
+            handle_start(config)?;
+        }
+        Commands::Stop => {
+            handle_stop()?;
+        }
+        Commands::Restart => {
+            handle_restart()?;
+        }
+        Commands::Status => {
+            handle_status()?;
         }
     }
 
@@ -639,4 +652,209 @@ fn check_logs_for_rules(log_content: &str, rules: &[(String, Regex)]) -> usize {
     }
 
     match_count
+}
+
+fn handle_start(config_path: Option<std::path::PathBuf>) -> Result<()> {
+    let mut stdout = StandardStream::stdout(ColorChoice::Always);
+    let manager = daemon::get_service_manager();
+    let status = manager.status()?;
+    
+    match status {
+        daemon::ServiceStatus::Running => {
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::Blue)))?;
+            write!(&mut stdout, "ℹ")?;
+            stdout.reset()?;
+            writeln!(&mut stdout, " TinyWatcher is already running")?;
+            
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+            writeln!(&mut stdout, "  Use 'tinywatcher restart' to restart the service")?;
+            stdout.reset()?;
+            
+            Ok(())
+        }
+        daemon::ServiceStatus::NotInstalled => {
+            // First time installation
+            if config_path.is_none() {
+                anyhow::bail!(
+                    "Configuration file is required for first-time installation.\n\
+                    Usage: tinywatcher start --config <path>\n\n\
+                    Example: tinywatcher start --config /path/to/config.yaml"
+                );
+            }
+            
+            // Validate config exists
+            let config = config_path.as_ref().unwrap();
+            if !config.exists() {
+                anyhow::bail!("Configuration file not found: {}", config.display());
+            }
+            
+            manager.install(config_path)?;
+            Ok(())
+        }
+        daemon::ServiceStatus::Stopped => {
+            // Service is installed but not running, just start it
+            manager.start()?;
+            Ok(())
+        }
+        daemon::ServiceStatus::Unknown => {
+            anyhow::bail!("Could not determine service status");
+        }
+    }
+}
+
+fn handle_stop() -> Result<()> {
+    let mut stdout = StandardStream::stdout(ColorChoice::Always);
+    let manager = daemon::get_service_manager();
+    let status = manager.status()?;
+    
+    match status {
+        daemon::ServiceStatus::NotInstalled => {
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::Blue)))?;
+            write!(&mut stdout, "ℹ")?;
+            stdout.reset()?;
+            writeln!(&mut stdout, " TinyWatcher service is not installed")?;
+            Ok(())
+        }
+        daemon::ServiceStatus::Stopped => {
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::Blue)))?;
+            write!(&mut stdout, "ℹ")?;
+            stdout.reset()?;
+            writeln!(&mut stdout, " TinyWatcher is not running")?;
+            Ok(())
+        }
+        _ => {
+            manager.stop()?;
+            Ok(())
+        }
+    }
+}
+
+fn handle_restart() -> Result<()> {
+    let mut stdout = StandardStream::stdout(ColorChoice::Always);
+    let manager = daemon::get_service_manager();
+    let status = manager.status()?;
+    
+    match status {
+        daemon::ServiceStatus::NotInstalled => {
+            anyhow::bail!(
+                "TinyWatcher service is not installed.\n\
+                Run 'tinywatcher start --config <path>' first."
+            );
+        }
+        _ => {
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::Cyan)).set_bold(true))?;
+            write!(&mut stdout, "Restarting")?;
+            stdout.reset()?;
+            writeln!(&mut stdout, " tinywatcher...")?;
+            
+            // Stop if running
+            if status == daemon::ServiceStatus::Running {
+                manager.stop()?;
+                // Give it a moment to stop
+                std::thread::sleep(std::time::Duration::from_secs(1));
+            }
+            
+            // Start the service
+            manager.start()?;
+            Ok(())
+        }
+    }
+}
+
+fn handle_status() -> Result<()> {
+    let mut stdout = StandardStream::stdout(ColorChoice::Always);
+    let manager = daemon::get_service_manager();
+    let status = manager.status()?;
+    
+    let platform = if cfg!(target_os = "macos") {
+        "launchd"
+    } else if cfg!(target_os = "linux") {
+        "systemd"
+    } else if cfg!(target_os = "windows") {
+        "Windows Service"
+    } else {
+        "unknown"
+    };
+    
+    stdout.set_color(ColorSpec::new().set_fg(Some(Color::Cyan)).set_bold(true))?;
+    writeln!(&mut stdout, "TinyWatcher Status")?;
+    stdout.reset()?;
+    
+    stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+    write!(&mut stdout, "  Service: ")?;
+    stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)))?;
+    writeln!(&mut stdout, "{}", manager.service_name())?;
+    
+    stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+    write!(&mut stdout, "  Platform: ")?;
+    stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)))?;
+    writeln!(&mut stdout, "{}", platform)?;
+    
+    stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+    write!(&mut stdout, "  Status: ")?;
+    stdout.reset()?;
+    
+    match status {
+        daemon::ServiceStatus::Running => {
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::Green)).set_bold(true))?;
+            writeln!(&mut stdout, "{}", status)?;
+            stdout.reset()?;
+            
+            writeln!(&mut stdout)?;
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::Green)))?;
+            writeln!(&mut stdout, "Service is running")?;
+            stdout.reset()?;
+            
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+            if cfg!(target_os = "macos") {
+                writeln!(&mut stdout, "  Logs: tail -f /tmp/tinywatcher.log")?;
+                writeln!(&mut stdout, "  Errors: tail -f /tmp/tinywatcher.err")?;
+            } else if cfg!(target_os = "linux") {
+                writeln!(&mut stdout, "  Logs: journalctl --user -u {} -f", manager.service_name())?;
+            } else if cfg!(target_os = "windows") {
+                writeln!(&mut stdout, "  View in: services.msc")?;
+            }
+            stdout.reset()?;
+        }
+        daemon::ServiceStatus::Stopped => {
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::Yellow)).set_bold(true))?;
+            writeln!(&mut stdout, "{}", status)?;
+            stdout.reset()?;
+            
+            writeln!(&mut stdout)?;
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::Yellow)))?;
+            writeln!(&mut stdout, "Service is installed but not running")?;
+            stdout.reset()?;
+            
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+            writeln!(&mut stdout, "  Start with: tinywatcher start")?;
+            stdout.reset()?;
+        }
+        daemon::ServiceStatus::NotInstalled => {
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::Red)).set_bold(true))?;
+            writeln!(&mut stdout, "{}", status)?;
+            stdout.reset()?;
+            
+            writeln!(&mut stdout)?;
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::Red)))?;
+            writeln!(&mut stdout, "Service is not installed")?;
+            stdout.reset()?;
+            
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+            writeln!(&mut stdout, "  Install with: tinywatcher start --config <path>")?;
+            stdout.reset()?;
+        }
+        daemon::ServiceStatus::Unknown => {
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+            writeln!(&mut stdout, "{}", status)?;
+            stdout.reset()?;
+            
+            writeln!(&mut stdout)?;
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::Yellow)))?;
+            writeln!(&mut stdout, "Could not determine service status")?;
+            stdout.reset()?;
+        }
+    }
+    
+    Ok(())
 }

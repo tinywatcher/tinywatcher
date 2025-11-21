@@ -63,4 +63,20 @@ pub enum Commands {
         #[arg(short = 'c', long)]
         container: Vec<String>,
     },
+
+    /// Start tinywatcher as a background service/daemon
+    Start {
+        /// Configuration file path (required for first-time setup)
+        #[arg(long)]
+        config: Option<PathBuf>,
+    },
+
+    /// Stop the tinywatcher background service/daemon
+    Stop,
+
+    /// Restart the tinywatcher background service/daemon
+    Restart,
+
+    /// Show the status of the tinywatcher background service/daemon
+    Status,
 }
