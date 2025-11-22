@@ -6,6 +6,9 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, BufReader};
 
+/// Maximum line length to prevent regex DoS
+const MAX_LINE_LENGTH: usize = 10_000;
+
 pub struct StreamMonitor {
     rules: Vec<CompiledRule>,
     alert_manager: Arc<AlertManager>,
@@ -86,6 +89,14 @@ impl StreamMonitor {
                 Ok(Message::Text(text)) => {
                     let source = SourceType::Stream(config.get_name());
                     for line in text.lines() {
+                        if line.len() > MAX_LINE_LENGTH {
+                            tracing::warn!(
+                                "Skipping line longer than {} bytes in stream {}",
+                                MAX_LINE_LENGTH,
+                                config.get_name()
+                            );
+                            continue;
+                        }
                         self.process_line(line, &source).await;
                     }
                 }
@@ -93,6 +104,14 @@ impl StreamMonitor {
                     if let Ok(text) = String::from_utf8(data) {
                         let source = SourceType::Stream(config.get_name());
                         for line in text.lines() {
+                            if line.len() > MAX_LINE_LENGTH {
+                                tracing::warn!(
+                                    "Skipping line longer than {} bytes in stream {}",
+                                    MAX_LINE_LENGTH,
+                                    config.get_name()
+                                );
+                                continue;
+                            }
                             self.process_line(line, &source).await;
                         }
                     }
@@ -159,6 +178,14 @@ impl StreamMonitor {
                 if let Ok(line) = String::from_utf8(line_bytes) {
                     let line = line.trim();
                     if !line.is_empty() {
+                        if line.len() > MAX_LINE_LENGTH {
+                            tracing::warn!(
+                                "Skipping line longer than {} bytes in stream {}",
+                                MAX_LINE_LENGTH,
+                                config.get_name()
+                            );
+                            continue;
+                        }
                         let source = SourceType::Stream(config.get_name());
                         self.process_line(line, &source).await;
                     }
@@ -192,6 +219,14 @@ impl StreamMonitor {
 
         let source = SourceType::Stream(config.get_name());
         while let Some(line) = lines.next_line().await? {
+            if line.len() > MAX_LINE_LENGTH {
+                tracing::warn!(
+                    "Skipping line longer than {} bytes in stream {}",
+                    MAX_LINE_LENGTH,
+                    config.get_name()
+                );
+                continue;
+            }
             self.process_line(&line, &source).await;
         }
 

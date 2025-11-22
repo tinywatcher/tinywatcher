@@ -5,8 +5,18 @@ use regex::Regex;
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
+
+/// Maximum line length to prevent regex DoS
+const MAX_LINE_LENGTH: usize = 10_000;
+
+/// Initial retry delay
+const INITIAL_RETRY_DELAY: Duration = Duration::from_secs(1);
+
+/// Maximum retry delay
+const MAX_RETRY_DELAY: Duration = Duration::from_secs(60);
 
 pub struct LogMonitor {
     rules: Vec<CompiledRule>,
@@ -43,8 +53,35 @@ impl LogMonitor {
         })
     }
 
+    /// Watch a file with automatic retry and reconnection
     pub async fn watch_file(&self, path: PathBuf) -> Result<()> {
-        tracing::info!("Watching file: {}", path.display());
+        let mut retry_delay = INITIAL_RETRY_DELAY;
+        
+        loop {
+            match self.watch_file_once(path.clone()).await {
+                Ok(_) => {
+                    tracing::warn!("File watcher exited cleanly for: {}", path.display());
+                    // Reset retry delay on successful connection
+                    retry_delay = INITIAL_RETRY_DELAY;
+                }
+                Err(e) => {
+                    tracing::error!(
+                        "File watch failed for {}: {}. Retrying in {:?}...",
+                        path.display(),
+                        e,
+                        retry_delay
+                    );
+                }
+            }
+            
+            tokio::time::sleep(retry_delay).await;
+            retry_delay = (retry_delay * 2).min(MAX_RETRY_DELAY);
+        }
+    }
+
+    /// Watch a file once (internal, no retry)
+    async fn watch_file_once(&self, path: PathBuf) -> Result<()> {
+        tracing::info!("Starting file watch: {}", path.display());
 
         let mut cmd = Command::new("tail")
             .arg("-f")
@@ -60,15 +97,86 @@ impl LogMonitor {
         let mut lines = reader.lines();
 
         let source = SourceType::File(path.clone());
-        while let Some(line) = lines.next_line().await? {
-            self.process_line(&line, &source).await;
+        
+        loop {
+            tokio::select! {
+                line_result = lines.next_line() => {
+                    match line_result {
+                        Ok(Some(line)) => {
+                            // Enforce line length limit
+                            if line.len() > MAX_LINE_LENGTH {
+                                tracing::warn!(
+                                    "Skipping line longer than {} bytes in {}",
+                                    MAX_LINE_LENGTH,
+                                    path.display()
+                                );
+                                continue;
+                            }
+                            self.process_line(&line, &source).await;
+                        }
+                        Ok(None) => {
+                            tracing::debug!("EOF reached for {}", path.display());
+                            break;
+                        }
+                        Err(e) => {
+                            // Kill child process before returning error
+                            let _ = cmd.kill().await;
+                            return Err(e.into());
+                        }
+                    }
+                }
+                status = cmd.wait() => {
+                    match status {
+                        Ok(exit_status) => {
+                            tracing::warn!(
+                                "tail process exited with status: {} for {}",
+                                exit_status,
+                                path.display()
+                            );
+                            return Err(anyhow::anyhow!("tail process exited: {}", exit_status));
+                        }
+                        Err(e) => {
+                            return Err(e).context("Failed to wait on tail process");
+                        }
+                    }
+                }
+            }
         }
 
+        // Ensure child process is killed
+        let _ = cmd.kill().await;
         Ok(())
     }
 
+    /// Watch a container with automatic retry and reconnection
     pub async fn watch_container(&self, container_name: String) -> Result<()> {
-        tracing::info!("Watching container: {}", container_name);
+        let mut retry_delay = INITIAL_RETRY_DELAY;
+        
+        loop {
+            match self.watch_container_once(container_name.clone()).await {
+                Ok(_) => {
+                    tracing::warn!("Container watcher exited cleanly for: {}", container_name);
+                    // Reset retry delay on successful connection
+                    retry_delay = INITIAL_RETRY_DELAY;
+                }
+                Err(e) => {
+                    tracing::error!(
+                        "Container watch failed for {}: {}. Retrying in {:?}...",
+                        container_name,
+                        e,
+                        retry_delay
+                    );
+                }
+            }
+            
+            tokio::time::sleep(retry_delay).await;
+            retry_delay = (retry_delay * 2).min(MAX_RETRY_DELAY);
+        }
+    }
+
+    /// Watch a container once (internal, no retry)
+    async fn watch_container_once(&self, container_name: String) -> Result<()> {
+        tracing::info!("Starting container watch: {}", container_name);
 
         let mut cmd = Command::new("docker")
             .arg("logs")
@@ -98,6 +206,15 @@ impl LogMonitor {
             tokio::spawn(async move {
                 let mut lines = stdout_reader.lines();
                 while let Ok(Some(line)) = lines.next_line().await {
+                    // Enforce line length limit
+                    if line.len() > MAX_LINE_LENGTH {
+                        tracing::warn!(
+                            "Skipping line longer than {} bytes in container {:?}",
+                            MAX_LINE_LENGTH,
+                            source
+                        );
+                        continue;
+                    }
                     monitor.process_line(&line, &source).await;
                 }
             })
@@ -109,12 +226,39 @@ impl LogMonitor {
             tokio::spawn(async move {
                 let mut lines = stderr_reader.lines();
                 while let Ok(Some(line)) = lines.next_line().await {
+                    // Enforce line length limit
+                    if line.len() > MAX_LINE_LENGTH {
+                        tracing::warn!(
+                            "Skipping line longer than {} bytes in container {:?}",
+                            MAX_LINE_LENGTH,
+                            source
+                        );
+                        continue;
+                    }
                     monitor.process_line(&line, &source).await;
                 }
             })
         };
 
-        tokio::try_join!(stdout_task, stderr_task)?;
+        // Wait for both tasks to complete and the process to exit
+        tokio::select! {
+            result = async {
+                tokio::try_join!(stdout_task, stderr_task)
+            } => {
+                // Kill process if streams finish
+                let _ = cmd.kill().await;
+                result?;
+            }
+            status = cmd.wait() => {
+                let exit_status = status.context("Failed to wait on docker logs process")?;
+                tracing::warn!(
+                    "docker logs process exited with status: {} for {}",
+                    exit_status,
+                    container_name
+                );
+                return Err(anyhow::anyhow!("docker logs process exited: {}", exit_status));
+            }
+        }
 
         Ok(())
     }

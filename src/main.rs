@@ -230,9 +230,19 @@ async fn handle_watch(
 
     tracing::info!(" TinyWatcher is running. Press Ctrl+C to stop.");
 
-    // Wait for any task to complete (which shouldn't happen unless there's an error)
-    let (result, _, _) = futures::future::select_all(tasks).await;
-    result?;
+    // Wait for Ctrl+C signal
+    tokio::signal::ctrl_c()
+        .await
+        .context("Failed to listen for Ctrl+C")?;
+
+    tracing::info!(" Received shutdown signal, stopping all monitors...");
+
+    // Abort all tasks
+    for task in tasks {
+        task.abort();
+    }
+
+    tracing::info!(" All monitors stopped.");
 
     Ok(())
 }

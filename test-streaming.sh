@@ -3,7 +3,7 @@
 # Simple test script for TinyWatcher streaming
 # This creates a TCP server that sends log messages
 
-echo "🧪 TinyWatcher Stream Test"
+echo "  TinyWatcher Stream Test"
 echo "=========================="
 echo ""
 echo "This script simulates a TCP log stream on localhost:9999"
@@ -34,7 +34,7 @@ rules:
     cooldown: 10
 EOF
 
-echo "✅ Created test config at /tmp/stream-test.yaml"
+echo "   Created test config at /tmp/stream-test.yaml"
 echo ""
 echo "To test:"
 echo "  1. In terminal 1, start the TCP log generator:"
@@ -47,13 +47,13 @@ echo "You should see TinyWatcher detect ERROR and WARN messages!"
 echo ""
 
 if [ "$1" = "server" ]; then
-    echo "🚀 Starting TCP log server on port 9999..."
+    echo "   Starting TCP log server on port 9999..."
     echo "   Press Ctrl+C to stop"
     echo ""
     
-    # Use netcat to create a simple TCP server (macOS compatible)
-    while true; do
-        {
+    # Function to generate continuous log stream
+    generate_logs() {
+        while true; do
             echo "[$(date '+%Y-%m-%d %H:%M:%S')] INFO: Application started"
             sleep 2
             echo "[$(date '+%Y-%m-%d %H:%M:%S')] INFO: Processing request..."
@@ -65,10 +65,24 @@ if [ "$1" = "server" ]; then
             echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: Database connection timeout"
             sleep 2
             echo "[$(date '+%Y-%m-%d %H:%M:%S')] FATAL: Application crashed"
-            sleep 5
-        } | nc -l 9999
-        
-        echo "Connection closed, restarting server..."
-        sleep 1
-    done
+            sleep 3
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] INFO: Restarting application..."
+            sleep 2
+        done
+    }
+    
+    # Use netcat to create a simple TCP server (macOS compatible)
+    # The -k flag keeps the connection alive on macOS nc
+    if nc -h 2>&1 | grep -q "keep listening"; then
+        # BSD nc (macOS) with -k support
+        generate_logs | nc -lk 9999
+    else
+        # Fallback: restart server on disconnect
+        while true; do
+            echo "Server ready, waiting for connection..."
+            generate_logs | nc -l 9999
+            echo "Connection closed, restarting server in 1 second..."
+            sleep 1
+        done
+    fi
 fi
