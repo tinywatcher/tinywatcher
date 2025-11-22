@@ -1,5 +1,5 @@
 use crate::alerts::AlertManager;
-use crate::config::{Rule, SourceType};
+use crate::config::{MatchType, Rule, SourceType};
 use anyhow::{Context, Result};
 use regex::Regex;
 use std::path::PathBuf;
@@ -25,10 +25,15 @@ pub struct LogMonitor {
 
 struct CompiledRule {
     name: String,
-    regex: Regex,
+    matcher: RuleMatcher,
     alert_names: Vec<String>,
     cooldown: u64,
     sources: Option<crate::config::RuleSources>,
+}
+
+enum RuleMatcher {
+    Text(String),
+    Regex(Regex),
 }
 
 impl LogMonitor {
@@ -36,10 +41,18 @@ impl LogMonitor {
         let compiled_rules = rules
             .into_iter()
             .map(|rule| {
+                let matcher = match rule.match_type() {
+                    MatchType::Text(text) => RuleMatcher::Text(text),
+                    MatchType::Regex(pattern) => {
+                        let regex = Regex::new(&pattern)
+                            .context(format!("Invalid regex pattern in rule: {}", rule.name))?;
+                        RuleMatcher::Regex(regex)
+                    }
+                };
+
                 Ok(CompiledRule {
                     name: rule.name.clone(),
-                    regex: Regex::new(&rule.pattern)
-                        .context(format!("Invalid regex pattern in rule: {}", rule.name))?,
+                    matcher,
                     alert_names: rule.alert,
                     cooldown: rule.cooldown,
                     sources: rule.sources,
@@ -270,7 +283,12 @@ impl LogMonitor {
                 continue;
             }
 
-            if rule.regex.is_match(line) {
+            let matched = match &rule.matcher {
+                RuleMatcher::Text(text) => line.contains(text),
+                RuleMatcher::Regex(regex) => regex.is_match(line),
+            };
+
+            if matched {
                 tracing::debug!("Rule '{}' matched line from {:?}: {}", rule.name, source, line);
                 
                 // Send alert to all configured destinations
@@ -317,7 +335,10 @@ impl LogMonitor {
         Self {
             rules: self.rules.iter().map(|r| CompiledRule {
                 name: r.name.clone(),
-                regex: r.regex.clone(),
+                matcher: match &r.matcher {
+                    RuleMatcher::Text(text) => RuleMatcher::Text(text.clone()),
+                    RuleMatcher::Regex(regex) => RuleMatcher::Regex(regex.clone()),
+                },
                 alert_names: r.alert_names.clone(),
                 cooldown: r.cooldown,
                 sources: r.sources.clone(),

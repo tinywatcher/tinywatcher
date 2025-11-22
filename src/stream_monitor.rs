@@ -1,5 +1,5 @@
 use crate::alerts::AlertManager;
-use crate::config::{Rule, SourceType, StreamConfig, StreamType};
+use crate::config::{MatchType, Rule, SourceType, StreamConfig, StreamType};
 use anyhow::{Context, Result};
 use regex::Regex;
 use std::sync::Arc;
@@ -16,10 +16,15 @@ pub struct StreamMonitor {
 
 struct CompiledRule {
     name: String,
-    regex: Regex,
+    matcher: RuleMatcher,
     alert_names: Vec<String>,
     cooldown: u64,
     sources: Option<crate::config::RuleSources>,
+}
+
+enum RuleMatcher {
+    Text(String),
+    Regex(Regex),
 }
 
 impl StreamMonitor {
@@ -27,11 +32,18 @@ impl StreamMonitor {
         let compiled_rules = rules
             .into_iter()
             .map(|rule| {
-                let regex = Regex::new(&rule.pattern)
-                    .with_context(|| format!("Invalid regex pattern in rule: {}", rule.name))?;
+                let matcher = match rule.match_type() {
+                    MatchType::Text(text) => RuleMatcher::Text(text),
+                    MatchType::Regex(pattern) => {
+                        let regex = Regex::new(&pattern)
+                            .with_context(|| format!("Invalid regex pattern in rule: {}", rule.name))?;
+                        RuleMatcher::Regex(regex)
+                    }
+                };
+
                 Ok(CompiledRule {
                     name: rule.name.clone(),
-                    regex,
+                    matcher,
                     alert_names: rule.alert,
                     cooldown: rule.cooldown,
                     sources: rule.sources,
@@ -240,7 +252,12 @@ impl StreamMonitor {
                 continue;
             }
 
-            if rule.regex.is_match(line) {
+            let matched = match &rule.matcher {
+                RuleMatcher::Text(text) => line.contains(text),
+                RuleMatcher::Regex(regex) => regex.is_match(line),
+            };
+
+            if matched {
                 let source_name = match source {
                     SourceType::Stream(name) => name.clone(),
                     _ => format!("{:?}", source),

@@ -104,13 +104,22 @@ pub enum AlertType {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Rule {
     pub name: String,
-    pub pattern: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pattern: Option<String>,
     #[serde(deserialize_with = "string_or_seq_string")]
     pub alert: Vec<String>,  // Can be a single alert name or list of alert names
     #[serde(default = "default_cooldown")]
     pub cooldown: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sources: Option<RuleSources>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum MatchType {
+    Text(String),
+    Regex(String),
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -217,6 +226,33 @@ pub enum SourceType {
 }
 
 impl Rule {
+    /// Validate that the rule has exactly one of text or pattern
+    pub fn validate(&self) -> anyhow::Result<()> {
+        match (&self.text, &self.pattern) {
+            (None, None) => anyhow::bail!(
+                "Rule '{}' must have either 'text' or 'pattern' field", 
+                self.name
+            ),
+            (Some(_), Some(_)) => anyhow::bail!(
+                "Rule '{}' cannot have both 'text' and 'pattern' fields", 
+                self.name
+            ),
+            _ => Ok(()),
+        }
+    }
+
+    /// Get the match type for this rule
+    pub fn match_type(&self) -> MatchType {
+        if let Some(ref text) = self.text {
+            MatchType::Text(text.clone())
+        } else if let Some(ref pattern) = self.pattern {
+            MatchType::Regex(pattern.clone())
+        } else {
+            // This should never happen if validate() was called
+            panic!("Rule '{}' has neither text nor pattern", self.name)
+        }
+    }
+
     /// Check if this rule applies to the given source
     /// Returns true if the rule has no sources filter (applies to all) or if the source matches
     pub fn applies_to_source(&self, source: &SourceType) -> bool {

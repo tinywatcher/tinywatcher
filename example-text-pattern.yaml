@@ -1,0 +1,40 @@
+# Example configuration showing both text and pattern matching
+
+alerts:
+  console:
+    type: stdout
+
+rules:
+  # Text matching - simple string search
+  - name: error-text
+    text: "ERROR"
+    alert: console
+    cooldown: 60
+
+  # Text matching - case-sensitive exact phrase
+  - name: connection-failed
+    text: "Connection failed"
+    alert: console
+    cooldown: 30
+
+  # Pattern matching - regex for more complex matches
+  - name: error-pattern
+    pattern: "ERROR|FATAL|CRITICAL"
+    alert: console
+    cooldown: 60
+
+  # Pattern matching - with regex groups
+  - name: http-errors
+    pattern: "HTTP [45][0-9]{2}"
+    alert: console
+    cooldown: 30
+
+  # Pattern matching - email addresses
+  - name: email-leak
+    pattern: "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}"
+    alert: console
+    cooldown: 300
+
+inputs:
+  files:
+    - /var/log/system.log

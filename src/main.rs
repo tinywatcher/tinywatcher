@@ -391,7 +391,15 @@ fn validate_config(config: &Config) -> Result<()> {
         stdout.reset()?;
         
         stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
-        writeln!(&mut stdout, "    Pattern: {}", rule.pattern)?;
+        if let Some(text) = &rule.text {
+            write!(&mut stdout, "    Text: ")?;
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)))?;
+            writeln!(&mut stdout, "{}", text)?;
+        } else if let Some(pattern) = &rule.pattern {
+            write!(&mut stdout, "    Pattern: ")?;
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)))?;
+            writeln!(&mut stdout, "{}", pattern)?;
+        }
         stdout.reset()?;
         
         stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
@@ -447,23 +455,42 @@ fn validate_config(config: &Config) -> Result<()> {
             }
         }
 
-        // Test regex compilation
-        match Regex::new(&rule.pattern) {
-            Ok(_) => {
-                write!(&mut stdout, "    ")?;
-                stdout.set_color(ColorSpec::new().set_fg(Some(Color::Green)))?;
-                write!(&mut stdout, "[OK]")?;
-                stdout.reset()?;
-                writeln!(&mut stdout, " Pattern is valid")?;
+        // Validate rule has exactly one of text or pattern
+        if let Err(e) = rule.validate() {
+            write!(&mut stdout, "    ")?;
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::Red)).set_bold(true))?;
+            write!(&mut stdout, "[ERROR]")?;
+            stdout.reset()?;
+            writeln!(&mut stdout, " {}", e)?;
+            return Err(e);
+        }
+
+        // Test regex compilation if pattern is used
+        if let Some(pattern) = &rule.pattern {
+            match Regex::new(pattern) {
+                Ok(_) => {
+                    write!(&mut stdout, "    ")?;
+                    stdout.set_color(ColorSpec::new().set_fg(Some(Color::Green)))?;
+                    write!(&mut stdout, "[OK]")?;
+                    stdout.reset()?;
+                    writeln!(&mut stdout, " Pattern is valid")?;
+                }
+                Err(e) => {
+                    write!(&mut stdout, "    ")?;
+                    stdout.set_color(ColorSpec::new().set_fg(Some(Color::Red)).set_bold(true))?;
+                    write!(&mut stdout, "[ERROR]")?;
+                    stdout.reset()?;
+                    writeln!(&mut stdout, " Pattern is invalid: {}", e)?;
+                    anyhow::bail!("Invalid regex pattern in rule: {}", rule.name);
+                }
             }
-            Err(e) => {
-                write!(&mut stdout, "    ")?;
-                stdout.set_color(ColorSpec::new().set_fg(Some(Color::Red)).set_bold(true))?;
-                write!(&mut stdout, "[ERROR]")?;
-                stdout.reset()?;
-                writeln!(&mut stdout, " Pattern is invalid: {}", e)?;
-                anyhow::bail!("Invalid regex pattern in rule: {}", rule.name);
-            }
+        } else {
+            // Text matching - always valid
+            write!(&mut stdout, "    ")?;
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::Green)))?;
+            write!(&mut stdout, "[OK]")?;
+            stdout.reset()?;
+            writeln!(&mut stdout, " Text matching is valid")?;
         }
     }
 
@@ -535,6 +562,11 @@ fn validate_config(config: &Config) -> Result<()> {
     Ok(())
 }
 
+enum CheckRuleMatcher {
+    Text(String),
+    Regex(Regex),
+}
+
 async fn handle_check(
     config_path: std::path::PathBuf,
     lines: usize,
@@ -566,14 +598,19 @@ async fn handle_check(
     tracing::info!("Starting log check...");
 
     // Compile rules (validation already checked they compile)
-    let compiled_rules: Vec<(String, Regex)> = config
+    use crate::config::MatchType;
+    
+    let compiled_rules: Vec<(String, CheckRuleMatcher)> = config
         .rules
         .iter()
         .map(|rule| {
-            Ok((
-                rule.name.clone(),
-                Regex::new(&rule.pattern).unwrap(), // Safe because validate_config already checked
-            ))
+            let matcher = match rule.match_type() {
+                MatchType::Text(text) => CheckRuleMatcher::Text(text),
+                MatchType::Regex(pattern) => {
+                    CheckRuleMatcher::Regex(Regex::new(&pattern).unwrap()) // Safe because validate_config already checked
+                }
+            };
+            Ok((rule.name.clone(), matcher))
         })
         .collect::<Result<Vec<_>>>()?;
 
@@ -642,21 +679,38 @@ async fn handle_check(
     Ok(())
 }
 
-fn check_logs_for_rules(log_content: &str, rules: &[(String, Regex)]) -> usize {
+fn check_logs_for_rules(log_content: &str, rules: &[(String, CheckRuleMatcher)]) -> usize {
     let mut match_count = 0;
 
     for line in log_content.lines() {
-        for (rule_name, regex) in rules {
-            if let Some(mat) = regex.find(line) {
-                match_count += 1;
-                
-                // Highlight the match
-                let before = &line[..mat.start()];
-                let matched = &line[mat.start()..mat.end()];
-                let after = &line[mat.end()..];
-                
-                println!("  ✓ [{}]", rule_name);
-                println!("    {}\x1b[1;33m{}\x1b[0m{}", before, matched, after);
+        for (rule_name, matcher) in rules {
+            match matcher {
+                CheckRuleMatcher::Text(text) => {
+                    if let Some(pos) = line.find(text) {
+                        match_count += 1;
+                        
+                        // Highlight the match
+                        let before = &line[..pos];
+                        let matched = &line[pos..pos + text.len()];
+                        let after = &line[pos + text.len()..];
+                        
+                        println!("  ✓ [{}]", rule_name);
+                        println!("    {}\x1b[1;33m{}\x1b[0m{}", before, matched, after);
+                    }
+                }
+                CheckRuleMatcher::Regex(regex) => {
+                    if let Some(mat) = regex.find(line) {
+                        match_count += 1;
+                        
+                        // Highlight the match
+                        let before = &line[..mat.start()];
+                        let matched = &line[mat.start()..mat.end()];
+                        let after = &line[mat.end()..];
+                        
+                        println!("  ✓ [{}]", rule_name);
+                        println!("    {}\x1b[1;33m{}\x1b[0m{}", before, matched, after);
+                    }
+                }
             }
         }
     }
