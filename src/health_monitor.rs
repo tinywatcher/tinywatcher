@@ -2,7 +2,13 @@ use crate::alerts::AlertManager;
 use anyhow::{Context, Result};
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::time::{interval, timeout};
+use tokio::time::interval;
+
+/// Initial retry delay
+const INITIAL_RETRY_DELAY: Duration = Duration::from_secs(5);
+
+/// Maximum retry delay
+const MAX_RETRY_DELAY: Duration = Duration::from_secs(300); // 5 minutes
 
 #[derive(Debug, Clone)]
 pub struct HealthCheck {
@@ -44,13 +50,39 @@ impl HealthMonitor {
             let identity = self.identity.clone();
             
             tasks.push(tokio::spawn(async move {
-                Self::run_health_check(check, alert_manager, identity).await;
+                Self::run_health_check_with_retry(check, alert_manager, identity).await;
             }));
         }
 
         // Wait for all tasks (they run indefinitely)
         for task in tasks {
             let _ = task.await;
+        }
+    }
+
+    /// Wrapper that retries health checks if they fail or exit unexpectedly
+    async fn run_health_check_with_retry(
+        check: HealthCheck,
+        alert_manager: Arc<AlertManager>,
+        identity: String,
+    ) {
+        let mut retry_delay = INITIAL_RETRY_DELAY;
+        
+        loop {
+            tracing::info!("Starting health check task: {}", check.name);
+            
+            // Run the health check (this should run indefinitely)
+            Self::run_health_check(check.clone(), alert_manager.clone(), identity.clone()).await;
+            
+            // If we get here, the check loop exited unexpectedly
+            tracing::error!(
+                "Health check '{}' exited unexpectedly. Retrying in {:?}...",
+                check.name,
+                retry_delay
+            );
+            
+            tokio::time::sleep(retry_delay).await;
+            retry_delay = (retry_delay * 2).min(MAX_RETRY_DELAY);
         }
     }
 
@@ -83,7 +115,7 @@ impl HealthMonitor {
                         tracing::info!("Health check '{}' recovered: {}", check.name, check.url);
                         
                         let message = format!(
-                            "✅ Service '{}' is back UP\n\
+                            "Service '{}' is back UP\n\
                             Identity: {}\n\
                             URL: {}\n\
                             Status: Healthy",
@@ -117,7 +149,7 @@ impl HealthMonitor {
                         is_down = true;
                         
                         let message = format!(
-                            "🚨 Service '{}' is DOWN\n\
+                            "Service '{}' is DOWN\n\
                             Identity: {}\n\
                             URL: {}\n\
                             Failed checks: {}\n\
@@ -147,16 +179,17 @@ impl HealthMonitor {
     async fn http_check(check: &HealthCheck) -> Result<()> {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(check.timeout_secs))
+            .connect_timeout(Duration::from_secs(5))
+            .tcp_keepalive(Duration::from_secs(30))
+            .pool_idle_timeout(Duration::from_secs(90))
             .build()
             .context("Failed to create HTTP client")?;
 
-        let response = timeout(
-            Duration::from_secs(check.timeout_secs),
-            client.get(&check.url).send(),
-        )
-        .await
-        .context("HTTP request timed out")?
-        .context("HTTP request failed")?;
+        let response = client
+            .get(&check.url)
+            .send()
+            .await
+            .context("HTTP request failed")?;
 
         if response.status().is_success() {
             Ok(())
