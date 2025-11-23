@@ -863,7 +863,48 @@ fn handle_start(config_path: Option<std::path::PathBuf>) -> Result<()> {
                 anyhow::bail!("Configuration file not found: {}", config.display());
             }
             
-            manager.install(config_path)?;
+            // Load config to check file permissions
+            let cfg = Config::from_file(config.to_str().context("Invalid config path")?)?;
+            
+            // Check if any files need elevated privileges
+            let needs_elevation = if !cfg.inputs.files.is_empty() {
+                match daemon::any_file_needs_elevation(&cfg.inputs.files) {
+                    Ok(needs_root) => {
+                        if needs_root {
+                            let protected_files = daemon::get_files_needing_elevation(&cfg.inputs.files)?;
+                            stdout.set_color(ColorSpec::new().set_fg(Some(Color::Yellow)))?;
+                            write!(&mut stdout, "  ⚠")?;
+                            stdout.reset()?;
+                            writeln!(&mut stdout, " Detected root/admin-owned log files:")?;
+                            
+                            for file in &protected_files {
+                                stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+                                writeln!(&mut stdout, "    - {}", file.display())?;
+                                stdout.reset()?;
+                            }
+                            
+                            writeln!(&mut stdout)?;
+                            stdout.set_color(ColorSpec::new().set_fg(Some(Color::Cyan)))?;
+                            write!(&mut stdout, "  ℹ")?;
+                            stdout.reset()?;
+                            #[cfg(unix)]
+                            writeln!(&mut stdout, " Service will be installed with elevated privileges (sudo required)")?;
+                            #[cfg(windows)]
+                            writeln!(&mut stdout, " Service will run as SYSTEM (Administrator required)")?;
+                            writeln!(&mut stdout)?;
+                        }
+                        needs_root
+                    }
+                    Err(e) => {
+                        tracing::warn!("Failed to check file permissions: {}", e);
+                        false
+                    }
+                }
+            } else {
+                false
+            };
+            
+            manager.install(config_path, needs_elevation)?;
             Ok(())
         }
         daemon::ServiceStatus::Stopped => {

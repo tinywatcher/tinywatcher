@@ -9,6 +9,10 @@ mod launchd;
 #[cfg(target_os = "windows")]
 mod windows_service;
 
+mod privilege;
+
+pub use privilege::{is_elevated, any_file_needs_elevation, get_files_needing_elevation};
+
 /// Determine the service manager for the current platform
 pub fn get_service_manager() -> Box<dyn ServiceManager> {
     #[cfg(target_os = "linux")]
@@ -27,7 +31,8 @@ pub fn get_service_manager() -> Box<dyn ServiceManager> {
 /// Service manager trait for cross-platform daemon management
 pub trait ServiceManager: Send + Sync {
     /// Install the service
-    fn install(&self, config_path: Option<PathBuf>) -> Result<()>;
+    /// If needs_elevation is true, the service will be installed with elevated privileges
+    fn install(&self, config_path: Option<PathBuf>, needs_elevation: bool) -> Result<()>;
     
     /// Uninstall the service
     fn uninstall(&self) -> Result<()>;

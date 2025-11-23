@@ -68,6 +68,14 @@ Despite its tiny footprint, TinyWatcher is built for reliability:
 * Disk usage alerts
 * Configurable thresholds and intervals
 
+### **System Health Checks**
+
+* **HTTP health checks** — monitor service availability and uptime
+* Configurable check intervals and timeouts
+* Failure thresholds to avoid false positives
+* Recovery alerts when services come back online
+* Perfect for monitoring APIs, databases, and microservices
+
 ### **Alerts**
 
 * **Named alerts** — define multiple alerts of the same type with custom names
@@ -144,6 +152,23 @@ resources:
     memory_percent: 80
     disk_percent: 90
     alert: team_slack  # references alert name
+
+# Monitor service health with HTTP checks
+system_checks:
+  - name: api_health
+    type: http
+    url: "http://localhost:8080/health"
+    interval: 30        # Check every 30 seconds
+    timeout: 5          # Request timeout in seconds
+    missed_threshold: 2 # Alert after 2 consecutive failures
+    alert: oncall_slack
+
+  - name: database
+    type: http
+    url: "http://localhost:5432/health"
+    interval: 60
+    missed_threshold: 3
+    alert: team_slack
 ```
 
 ---
@@ -570,6 +595,90 @@ journalctl --user -u tinywatcher -f
 # View real-time logs (macOS)
 tail -f /tmp/tinywatcher.log
 ```
+
+### 7. Complete Monitoring Stack with Health Checks
+
+```yaml
+# complete-monitoring.yaml
+identity:
+  name: api-server-prod-1
+
+alerts:
+  critical_slack:
+    type: slack
+    url: "https://hooks.slack.com/services/YOUR/CRITICAL/WEBHOOK"
+  
+  ops_slack:
+    type: slack
+    url: "https://hooks.slack.com/services/YOUR/OPS/WEBHOOK"
+
+# Monitor application logs
+inputs:
+  files:
+    - /var/log/app/error.log
+  containers:
+    - api-service
+    - background-worker
+
+rules:
+  - name: critical_errors
+    pattern: "CRITICAL|FATAL|PANIC"
+    alert: critical_slack
+    cooldown: 30
+  
+  - name: errors
+    pattern: "ERROR"
+    alert: ops_slack
+    cooldown: 300
+
+# Monitor system resources
+resources:
+  interval: 30
+  thresholds:
+    cpu_percent: 90
+    memory_percent: 85
+    disk_percent: 95
+    alert: critical_slack
+
+# Monitor service health
+system_checks:
+  - name: main_api
+    type: http
+    url: "http://localhost:8080/health"
+    interval: 30
+    timeout: 5
+    missed_threshold: 2
+    alert: critical_slack
+  
+  - name: worker_health
+    type: http
+    url: "http://localhost:9090/health"
+    interval: 60
+    timeout: 10
+    missed_threshold: 3
+    alert: ops_slack
+  
+  - name: postgres
+    type: http
+    url: "http://localhost:5432/health"
+    interval: 30
+    missed_threshold: 2
+    alert: critical_slack
+```
+
+```bash
+# Deploy complete monitoring
+tinywatcher start --config complete-monitoring.yaml
+
+# This single config monitors:
+# ✅ Application logs for errors
+# ✅ System CPU, memory, and disk usage
+# ✅ HTTP health of all services
+# ✅ Sends alerts to appropriate Slack channels
+# ✅ Runs 24/7 with automatic restart
+```
+
+**📖 See [HEALTH_CHECKS.md](HEALTH_CHECKS.md) for complete health check documentation!**
 
 ---
 

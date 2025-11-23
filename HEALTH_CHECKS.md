@@ -47,7 +47,7 @@ system_checks:
 
 ### Down Alert
 ```
-🚨 Service 'local_api' is DOWN
+Service 'local_api' is DOWN
 Identity: production-server
 URL: http://localhost:8080/health
 Failed checks: 2
@@ -56,7 +56,7 @@ Error: HTTP status: 503
 
 ### Recovery Alert
 ```
-✅ Service 'local_api' is back UP
+Service 'local_api' is back UP
 Identity: production-server
 URL: http://localhost:8080/health
 Status: Healthy

@@ -18,13 +18,20 @@ impl WindowsServiceManager {
 }
 
 impl ServiceManager for WindowsServiceManager {
-    fn install(&self, config_path: Option<PathBuf>) -> Result<()> {
+    fn install(&self, config_path: Option<PathBuf>, needs_elevation: bool) -> Result<()> {
         let mut stdout = StandardStream::stdout(ColorChoice::Always);
         
         stdout.set_color(ColorSpec::new().set_fg(Some(Color::Cyan)).set_bold(true))?;
         write!(&mut stdout, "Installing")?;
         stdout.reset()?;
         writeln!(&mut stdout, " tinywatcher as a Windows service...")?;
+        
+        if needs_elevation && !super::is_elevated() {
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::Yellow)))?;
+            write!(&mut stdout, "  ⚠")?;
+            stdout.reset()?;
+            writeln!(&mut stdout, " Detected protected log files. Service will run as SYSTEM...")?;
+        }
         
         let exe_path = super::get_executable_path()?;
         let exe_path_str = exe_path.to_str().context("Invalid executable path")?;
@@ -36,17 +43,28 @@ impl ServiceManager for WindowsServiceManager {
         }
         
         // Create the service using sc.exe
+        // Windows services run as LocalSystem by default, which has full access
+        // If needs_elevation is true, we explicitly set the service to run as LocalSystem
+        let mut args = vec![
+            "create",
+            &self.service_name,
+            "binPath=",
+            &bin_path,
+            "start=",
+            "auto",
+            "DisplayName=",
+            "TinyWatcher Agent",
+        ];
+        
+        // Explicitly set to run as LocalSystem if elevated privileges are needed
+        let obj_param;
+        if needs_elevation {
+            obj_param = "obj=LocalSystem".to_string();
+            args.push(&obj_param);
+        }
+        
         let output = Command::new("sc")
-            .args(&[
-                "create",
-                &self.service_name,
-                "binPath=",
-                &bin_path,
-                "start=",
-                "auto",
-                "DisplayName=",
-                "TinyWatcher Agent",
-            ])
+            .args(&args)
             .output()
             .context("Failed to create service. Note: Administrator privileges required.")?;
         
