@@ -2,6 +2,7 @@ mod alerts;
 mod cli;
 mod config;
 mod daemon;
+mod health_monitor;
 mod log_monitor;
 mod resource_monitor;
 mod stream_monitor;
@@ -11,6 +12,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use cli::{Cli, Commands};
 use config::Config;
+use health_monitor::{HealthCheck, HealthCheckType, HealthMonitor};
 use log_monitor::LogMonitor;
 use regex::Regex;
 use resource_monitor::ResourceMonitor;
@@ -89,6 +91,7 @@ async fn handle_watch(
             rules: Vec::new(),
             resources: None,
             identity: config::Identity::default(),
+            system_checks: Vec::new(),
         }
     };
 
@@ -100,15 +103,16 @@ async fn handle_watch(
         && config.inputs.containers.is_empty()
         && config.inputs.streams.is_empty()
         && (no_resources || config.resources.is_none())
+        && config.system_checks.is_empty()
     {
-        anyhow::bail!("Nothing to watch! Provide --file, --container, --stream, or configure resources.");
+        anyhow::bail!("Nothing to watch! Provide --file, --container, --stream, configure resources, or add system_checks.");
     }
 
     let identity = config.identity.get_name();
     tracing::info!("🚀 Starting TinyWatcher (identity: {})...", identity);
 
     // Create alert manager and register handlers
-    let mut alert_manager = AlertManager::new(identity);
+    let mut alert_manager = AlertManager::new(identity.clone());
     
     for (name, alert) in &config.alerts {
         use crate::config::{AlertOptions, AlertType};
@@ -218,6 +222,36 @@ async fn handle_watch(
         }
     }
 
+    // Start health check monitoring
+    if !config.system_checks.is_empty() {
+        // Convert config checks to health checks
+        let health_checks: Vec<HealthCheck> = config
+            .system_checks
+            .iter()
+            .map(|sc| HealthCheck {
+                name: sc.name.clone(),
+                check_type: match sc.check_type {
+                    config::SystemCheckType::Http => HealthCheckType::Http,
+                },
+                url: sc.url.clone(),
+                interval: sc.interval,
+                timeout_secs: sc.timeout,
+                missed_threshold: sc.missed_threshold,
+                alert: sc.alert.clone(),
+            })
+            .collect();
+
+        let health_monitor = HealthMonitor::new(
+            health_checks,
+            alert_manager.clone(),
+            identity.clone(),
+        );
+        
+        tasks.push(tokio::spawn(async move {
+            health_monitor.start().await;
+        }));
+    }
+
     // Wait for all tasks
     if tasks.is_empty() {
         tracing::error!("No monitoring tasks started!");
@@ -225,6 +259,7 @@ async fn handle_watch(
         tracing::error!("   - Provide a --config file with rules and inputs");
         tracing::error!("   - Or use --file/--container with a config file that has rules");
         tracing::error!("   - Or configure resource monitoring in your config file");
+        tracing::error!("   - Or configure system health checks in your config file");
         anyhow::bail!("Nothing to monitor");
     }
 
@@ -553,6 +588,70 @@ fn validate_config(config: &Config) -> Result<()> {
         stdout.reset()?;
     }
 
+    // Validate system checks
+    stdout.set_color(ColorSpec::new().set_fg(Some(Color::Cyan)).set_bold(true))?;
+    writeln!(&mut stdout, "\nSYSTEM CHECKS")?;
+    stdout.reset()?;
+    
+    stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+    write!(&mut stdout, "  Total: ")?;
+    stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)))?;
+    writeln!(&mut stdout, "{}", config.system_checks.len())?;
+    stdout.reset()?;
+    
+    if !config.system_checks.is_empty() {
+        for check in &config.system_checks {
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::Magenta)).set_bold(true))?;
+            writeln!(&mut stdout, "  {}", check.name)?;
+            stdout.reset()?;
+            
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+            write!(&mut stdout, "    Type: ")?;
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)))?;
+            writeln!(&mut stdout, "{:?}", check.check_type)?;
+            
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+            write!(&mut stdout, "    URL: ")?;
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)))?;
+            writeln!(&mut stdout, "{}", check.url)?;
+            
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+            write!(&mut stdout, "    Interval: ")?;
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)))?;
+            writeln!(&mut stdout, "{}s", check.interval)?;
+            
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+            write!(&mut stdout, "    Timeout: ")?;
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)))?;
+            writeln!(&mut stdout, "{}s", check.timeout)?;
+            
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+            write!(&mut stdout, "    Missed Threshold: ")?;
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)))?;
+            writeln!(&mut stdout, "{}", check.missed_threshold)?;
+            
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+            write!(&mut stdout, "    Alert: ")?;
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)))?;
+            writeln!(&mut stdout, "{}", check.alert)?;
+            stdout.reset()?;
+            
+            // Check if alert exists
+            if !config.alerts.contains_key(&check.alert) {
+                write!(&mut stdout, "    ")?;
+                stdout.set_color(ColorSpec::new().set_fg(Some(Color::Red)).set_bold(true))?;
+                write!(&mut stdout, "[ERROR]")?;
+                stdout.reset()?;
+                writeln!(&mut stdout, " Alert '{}' not found in configuration", check.alert)?;
+                anyhow::bail!("System check '{}' references undefined alert '{}'", check.name, check.alert);
+            }
+        }
+    } else {
+        stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+        writeln!(&mut stdout, "  Not configured")?;
+        stdout.reset()?;
+    }
+
     // Final success message
     writeln!(&mut stdout)?;
     stdout.set_color(ColorSpec::new().set_fg(Some(Color::Green)).set_bold(true))?;
@@ -588,9 +687,21 @@ async fn handle_check(
     // First, validate the configuration
     validate_config(&config)?;
 
-    if config.rules.is_empty() {
+    // Only need rules if we have log inputs to check
+    let has_log_inputs = !config.inputs.files.is_empty() || !config.inputs.containers.is_empty();
+    
+    if has_log_inputs && config.rules.is_empty() {
         tracing::error!("No rules defined in configuration!");
         anyhow::bail!("Cannot check logs without rules");
+    }
+
+    // If no log inputs, just exit successfully after validation
+    if !has_log_inputs {
+        println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        println!(" No log inputs to check");
+        println!(" Configuration is valid and ready to use");
+        println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        return Ok(());
     }
 
     println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");

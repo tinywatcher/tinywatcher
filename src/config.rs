@@ -13,6 +13,29 @@ pub struct Config {
     pub resources: Option<ResourceConfig>,
     #[serde(default)]
     pub identity: Identity,
+    #[serde(default)]
+    pub system_checks: Vec<SystemCheck>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct SystemCheck {
+    pub name: String,
+    #[serde(rename = "type")]
+    pub check_type: SystemCheckType,
+    pub url: String,
+    #[serde(default = "default_check_interval")]
+    pub interval: u64,
+    #[serde(default = "default_timeout")]
+    pub timeout: u64,
+    #[serde(default = "default_missed_threshold")]
+    pub missed_threshold: u32,
+    pub alert: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum SystemCheckType {
+    Http,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -187,6 +210,18 @@ fn default_cooldown() -> u64 {
 
 fn default_interval() -> u64 {
     10
+}
+
+fn default_check_interval() -> u64 {
+    30
+}
+
+fn default_timeout() -> u64 {
+    5
+}
+
+fn default_missed_threshold() -> u32 {
+    2
 }
 
 impl Config {

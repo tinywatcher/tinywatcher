@@ -1,0 +1,38 @@
+# Example configuration for system health checks
+
+identity:
+  name: production-server
+
+alerts:
+  oncall_slack:
+    type: slack
+    url: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+  
+  stdout_alert:
+    type: stdout
+
+# System health checks - monitor service liveness
+system_checks:
+  - name: local_api
+    type: http
+    url: "http://localhost:8080/health"
+    interval: 30        # Check every 30 seconds
+    timeout: 5          # Request timeout in seconds
+    missed_threshold: 2 # Alert after 2 consecutive failures
+    alert: oncall_slack
+
+  - name: database_health
+    type: http
+    url: "http://localhost:5432/health"
+    interval: 60
+    timeout: 10
+    missed_threshold: 3
+    alert: stdout_alert
+
+  - name: external_api
+    type: http
+    url: "https://api.example.com/status"
+    interval: 120       # Check every 2 minutes
+    timeout: 15
+    missed_threshold: 2
+    alert: oncall_slack
