@@ -269,57 +269,62 @@ This is especially useful when monitoring multiple servers with the same config 
 
 ## **Usage**
 
-### Watch files and containers in real-time:
+### Watch Mode
+
+Start monitoring with your configuration:
 
 ```bash
-# Watch a specific file
-tinywatcher watch --file /var/log/nginx/error.log
-
-# Watch Docker containers
-tinywatcher watch --container nginx --container api
-
-# Use a configuration file
 tinywatcher watch --config config.yaml
 ```
 
-### Check rules against recent logs (with highlighted matches):
+Disable resource monitoring:
 
 ```bash
-# Check last 100 lines (default) from configured sources
+tinywatcher watch --config config.yaml --no-resources
+```
+
+### Check Mode
+
+Test your rules against recent log entries with highlighted matches:
+
+```bash
+# Check last 100 lines (default)
 tinywatcher check --config config.yaml
 
 # Check last 50 lines
 tinywatcher check --config config.yaml -n 50
 
-# Override and check specific container
-tinywatcher check --config config.yaml --container tinyetl-mysql
-
-# Check specific file
+# Check specific files only
 tinywatcher check --config config.yaml --file /var/log/app.log
+
+# Check specific containers only
+tinywatcher check --config config.yaml --container myapp
 ```
 
-### Test configuration validity:
+### Test Mode
+
+Validate your configuration without starting monitoring:
 
 ```bash
 tinywatcher test --config config.yaml
 ```
 
-### Enable verbose logging:
-
-```bash
-tinywatcher watch --config config.yaml --verbose
-```
+This will:
+- Validate all configuration syntax
+- Check that referenced alerts exist
+- Verify regex patterns compile
+- Display a summary of all rules and alerts
 
 ---
 
-## **🔄 Background Service Mode**
+## **🔄 Daemon Mode**
 
 Run TinyWatcher as a persistent background service that starts automatically on boot and restarts on crashes. **Fully cross-platform** — works seamlessly on Linux (systemd), macOS (launchd), and Windows (Windows Service).
 
-### Install and start as a background service:
+### Start as a background service:
 
 ```bash
-# First time: Install and start the service with your config
+# Start the daemon
 tinywatcher start --config config.yaml
 ```
 
@@ -525,14 +530,7 @@ resources:
 tinywatcher watch --config config.yaml
 ```
 
-### 4. Quick Test Without Config File
-
-```bash
-# Just watch a file (note: no rules means no alerts)
-tinywatcher watch --file /var/log/app.log
-```
-
-### 5. Debug Your Rules
+### 4. Debug Your Rules
 
 ```bash
 # Check if your regex patterns work correctly
@@ -541,7 +539,7 @@ tinywatcher check --config config.yaml --container my-app -n 1000
 # The output will show you exactly what matched and where
 ```
 
-### 6. Production Deployment with Background Service
+### 5. Production Deployment with Background Service
 
 ```yaml
 # production-config.yaml

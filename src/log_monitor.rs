@@ -97,7 +97,7 @@ impl LogMonitor {
         tracing::info!("Starting file watch: {}", path.display());
 
         let mut cmd = Command::new("tail")
-            .arg("-f")
+            .arg("-F")  // Follow by name, handles log rotation
             .arg("-n")
             .arg("0")
             .arg(&path)

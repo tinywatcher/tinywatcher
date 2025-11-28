@@ -4,6 +4,7 @@ use anyhow::Result;
 use chrono::Utc;
 
 pub struct StdoutAlert {
+    #[allow(dead_code)]
     name: String,
 }
 

@@ -40,12 +40,10 @@ async fn main() -> Result<()> {
 
     match cli.command {
         Commands::Watch {
-            config: config_path,
-            file,
-            container,
+            config,
             no_resources,
         } => {
-            handle_watch(config_path, file, container, no_resources).await?;
+            handle_watch(config, no_resources).await?;
         }
         Commands::Test { config } => {
             handle_test(config).await?;
@@ -76,36 +74,25 @@ async fn main() -> Result<()> {
 }
 
 async fn handle_watch(
-    config_path: Option<std::path::PathBuf>,
-    files: Vec<std::path::PathBuf>,
-    containers: Vec<String>,
+    config_path: std::path::PathBuf,
     no_resources: bool,
 ) -> Result<()> {
-    // Load or create config
-    let mut config = if let Some(path) = config_path {
-        Config::from_file(path.to_str().context("Invalid config path")?)?
-    } else {
-        Config {
-            inputs: config::Inputs::default(),
-            alerts: std::collections::HashMap::new(),
-            rules: Vec::new(),
-            resources: None,
-            identity: config::Identity::default(),
-            system_checks: Vec::new(),
-        }
-    };
+    // Load config
+    let mut config = Config::from_file(config_path.to_str().context("Invalid config path")?)?;
 
-    // Merge CLI arguments
-    config.merge_with_cli(files, containers);
+    // Disable resource monitoring if requested
+    if no_resources {
+        config.resources = None;
+    }
 
     // Check if we have anything to watch
     if config.inputs.files.is_empty()
         && config.inputs.containers.is_empty()
         && config.inputs.streams.is_empty()
-        && (no_resources || config.resources.is_none())
+        && config.resources.is_none()
         && config.system_checks.is_empty()
     {
-        anyhow::bail!("Nothing to watch! Provide --file, --container, --stream, configure resources, or add system_checks.");
+        anyhow::bail!("Nothing to watch! Configure files, containers, streams, resources, or system_checks in your config file.");
     }
 
     let identity = config.identity.get_name();
@@ -832,6 +819,32 @@ fn check_logs_for_rules(log_content: &str, rules: &[(String, CheckRuleMatcher)])
 fn handle_start(config_path: Option<std::path::PathBuf>) -> Result<()> {
     let mut stdout = StandardStream::stdout(ColorChoice::Always);
     let manager = daemon::get_service_manager();
+    
+    // Check if we're running with elevated privileges
+    let running_as_root = daemon::is_elevated();
+    
+    // Check which services are installed
+    #[cfg(target_os = "macos")]
+    let (user_service_installed, system_service_installed) = {
+        use std::path::PathBuf;
+        let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+        let agent_path = PathBuf::from(&home).join("Library/LaunchAgents/com.tinywatcher.agent.plist");
+        let daemon_path = PathBuf::from("/Library/LaunchDaemons/com.tinywatcher.agent.plist");
+        (agent_path.exists(), daemon_path.exists())
+    };
+    
+    #[cfg(target_os = "linux")]
+    let (user_service_installed, system_service_installed) = {
+        use std::path::PathBuf;
+        let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+        let user_path = PathBuf::from(&home).join(".config/systemd/user/tinywatcher.service");
+        let system_path = PathBuf::from("/etc/systemd/system/tinywatcher.service");
+        (user_path.exists(), system_path.exists())
+    };
+    
+    #[cfg(target_os = "windows")]
+    let (user_service_installed, system_service_installed) = (false, false);
+    
     let status = manager.status()?;
     
     match status {
@@ -904,11 +917,66 @@ fn handle_start(config_path: Option<std::path::PathBuf>) -> Result<()> {
                 false
             };
             
+            // Override needs_elevation if running with sudo
+            let needs_elevation = if running_as_root {
+                stdout.set_color(ColorSpec::new().set_fg(Some(Color::Cyan)))?;
+                write!(&mut stdout, "  ℹ")?;
+                stdout.reset()?;
+                writeln!(&mut stdout, " Running with sudo - will install as system service (LaunchDaemon)")?;
+                writeln!(&mut stdout)?;
+                true
+            } else {
+                needs_elevation
+            };
+            
             manager.install(config_path, needs_elevation)?;
             Ok(())
         }
         daemon::ServiceStatus::Stopped => {
-            // Service is installed but not running, just start it
+            // Service is installed but not running
+            // Check if the installed service type matches the current privilege level
+            #[cfg(any(target_os = "macos", target_os = "linux"))]
+            if (running_as_root && user_service_installed && !system_service_installed) || (!running_as_root && system_service_installed && !user_service_installed) {
+                // Mismatch: wrong service type for current privilege level
+                if running_as_root && user_service_installed {
+                    // Running with sudo but only user service exists
+                    stdout.set_color(ColorSpec::new().set_fg(Some(Color::Yellow)))?;
+                    write!(&mut stdout, "  ⚠")?;
+                    stdout.reset()?;
+                    #[cfg(target_os = "macos")]
+                    writeln!(&mut stdout, " User service (LaunchAgent) is installed, but running with sudo")?;
+                    #[cfg(target_os = "linux")]
+                    writeln!(&mut stdout, " User service is installed, but running with sudo")?;
+                    #[cfg(target_os = "macos")]
+                    writeln!(&mut stdout, "  Installing system service (LaunchDaemon) instead...")?;
+                    #[cfg(target_os = "linux")]
+                    writeln!(&mut stdout, "  Installing system service instead...")?;
+                    writeln!(&mut stdout)?;
+                    
+                    if config_path.is_none() {
+                        anyhow::bail!(
+                            "Configuration file is required to install system service.\n\
+                            Usage: sudo tinywatcher start --config <path>"
+                        );
+                    }
+                    
+                    manager.install(config_path, true)?;
+                    return Ok(());
+                } else if !running_as_root && system_service_installed {
+                    // Running without sudo but only system service exists
+                    #[cfg(target_os = "macos")]
+                    anyhow::bail!(
+                        "System service (LaunchDaemon) is installed but requires sudo.\n\
+                        Run: sudo tinywatcher start"
+                    );
+                    #[cfg(target_os = "linux")]
+                    anyhow::bail!(
+                        "System service is installed but requires sudo.\n\
+                        Run: sudo tinywatcher start"
+                    );
+                }
+            }
+            
             manager.start()?;
             Ok(())
         }

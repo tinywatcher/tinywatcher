@@ -22,6 +22,7 @@ pub trait AlertHandler: Send + Sync {
     async fn send(&self, identity: &str, rule_name: &str, message: &str) -> Result<()>;
     
     /// Get a human-readable name for this alert handler
+    #[allow(dead_code)]
     fn name(&self) -> &str;
 }
 

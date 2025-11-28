@@ -35,6 +35,7 @@ pub trait ServiceManager: Send + Sync {
     fn install(&self, config_path: Option<PathBuf>, needs_elevation: bool) -> Result<()>;
     
     /// Uninstall the service
+    #[allow(dead_code)]
     fn uninstall(&self) -> Result<()>;
     
     /// Start the service
@@ -57,6 +58,7 @@ pub enum ServiceStatus {
     Running,
     Stopped,
     NotInstalled,
+    #[allow(dead_code)]
     Unknown,
 }
 
@@ -77,6 +79,7 @@ pub fn get_executable_path() -> Result<PathBuf> {
 }
 
 /// Helper to run a command and check if it succeeded
+#[allow(dead_code)]
 pub fn run_command(command: &str, args: &[&str]) -> Result<bool> {
     let output = Command::new(command)
         .args(args)
@@ -88,6 +91,7 @@ pub fn run_command(command: &str, args: &[&str]) -> Result<bool> {
 
 /// Helper to run a command with sudo
 #[cfg(unix)]
+#[allow(dead_code)]
 pub fn run_command_sudo(command: &str, args: &[&str]) -> Result<bool> {
     let mut sudo_args = vec![command];
     sudo_args.extend_from_slice(args);

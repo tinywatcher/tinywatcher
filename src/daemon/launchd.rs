@@ -103,6 +103,21 @@ impl ServiceManager for LaunchdManager {
         stdout.reset()?;
         writeln!(&mut stdout, " tinywatcher as a {}...", service_type)?;
         
+        // Check if opposite service type is already installed
+        let opposite_path = self.get_plist_path(!is_daemon);
+        if opposite_path.exists() {
+            let opposite_type = if is_daemon { "LaunchAgent" } else { "LaunchDaemon" };
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::Yellow)))?;
+            write!(&mut stdout, "  ⚠")?;
+            stdout.reset()?;
+            writeln!(&mut stdout, " Note: {} is already installed at:", opposite_type)?;
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+            writeln!(&mut stdout, "    {}", opposite_path.display())?;
+            stdout.reset()?;
+            writeln!(&mut stdout, "  Both services will coexist. You can remove the {} later if not needed.", opposite_type)?;
+            writeln!(&mut stdout)?;
+        }
+        
         if is_daemon && !super::is_elevated() {
             stdout.set_color(ColorSpec::new().set_fg(Some(Color::Yellow)))?;
             write!(&mut stdout, "  ⚠")?;
@@ -241,11 +256,46 @@ impl ServiceManager for LaunchdManager {
         // Check both LaunchAgent and LaunchDaemon locations
         let agent_path = self.get_plist_path(false);
         let daemon_path = self.get_plist_path(true);
+        let running_as_root = super::is_elevated();
         
-        let (plist_path, is_daemon) = if daemon_path.exists() {
+        // Handle the case where both services exist
+        if daemon_path.exists() && agent_path.exists() {
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::Yellow)))?;
+            write!(&mut stdout, "  ⚠")?;
+            stdout.reset()?;
+            writeln!(&mut stdout, " Detected both user and system services installed")?;
+            
+            if running_as_root {
+                writeln!(&mut stdout, "  Uninstalling system service (LaunchDaemon)...")?;
+                writeln!(&mut stdout)?;
+                stdout.set_color(ColorSpec::new().set_fg(Some(Color::Cyan)))?;
+                write!(&mut stdout, "  ℹ")?;
+                stdout.reset()?;
+                writeln!(&mut stdout, " To also remove user service, run: tinywatcher uninstall (without sudo)")?;
+            } else {
+                writeln!(&mut stdout, "  Uninstalling user service (LaunchAgent)...")?;
+                writeln!(&mut stdout)?;
+                stdout.set_color(ColorSpec::new().set_fg(Some(Color::Cyan)))?;
+                write!(&mut stdout, "  ℹ")?;
+                stdout.reset()?;
+                writeln!(&mut stdout, " To also remove system service, run: sudo tinywatcher uninstall")?;
+            }
+        }
+        
+        let (plist_path, is_daemon) = if daemon_path.exists() && running_as_root {
             (daemon_path, true)
-        } else if agent_path.exists() {
+        } else if agent_path.exists() && !running_as_root {
             (agent_path, false)
+        } else if daemon_path.exists() && !running_as_root {
+            anyhow::bail!(
+                "System service (LaunchDaemon) is installed but requires sudo.\n\
+                Run: sudo tinywatcher uninstall"
+            );
+        } else if agent_path.exists() && running_as_root {
+            anyhow::bail!(
+                "User service (LaunchAgent) is installed.\n\
+                Do not use sudo. Run: tinywatcher uninstall (without sudo)"
+            );
         } else {
             stdout.set_color(ColorSpec::new().set_fg(Some(Color::Blue)))?;
             write!(&mut stdout, "  ℹ")?;
@@ -309,10 +359,41 @@ impl ServiceManager for LaunchdManager {
         // Check both LaunchAgent and LaunchDaemon locations
         let agent_path = self.get_plist_path(false);
         let daemon_path = self.get_plist_path(true);
+        let running_as_root = super::is_elevated();
         
-        let (plist_path, is_daemon) = if daemon_path.exists() {
+        // Determine which service to use based on what's installed and current privileges
+        let (plist_path, is_daemon) = if daemon_path.exists() && agent_path.exists() {
+            // Both exist - choose based on current user context
+            if running_as_root {
+                stdout.set_color(ColorSpec::new().set_fg(Some(Color::Yellow)))?;
+                write!(&mut stdout, "  ⚠")?;
+                stdout.reset()?;
+                writeln!(&mut stdout, " Detected both user and system services installed")?;
+                writeln!(&mut stdout, "  Starting system service (LaunchDaemon) since running with sudo...")?;
+                (daemon_path, true)
+            } else {
+                stdout.set_color(ColorSpec::new().set_fg(Some(Color::Yellow)))?;
+                write!(&mut stdout, "  ⚠")?;
+                stdout.reset()?;
+                writeln!(&mut stdout, " Detected both user and system services installed")?;
+                writeln!(&mut stdout, "  Starting user service (LaunchAgent)...")?;
+                (agent_path, false)
+            }
+        } else if daemon_path.exists() {
+            if !running_as_root {
+                anyhow::bail!(
+                    "System service (LaunchDaemon) is installed but requires sudo.\n\
+                    Run: sudo tinywatcher start"
+                );
+            }
             (daemon_path, true)
         } else if agent_path.exists() {
+            if running_as_root {
+                anyhow::bail!(
+                    "User service (LaunchAgent) is installed.\n\
+                    Do not use sudo. Run: tinywatcher start (without sudo)"
+                );
+            }
             (agent_path, false)
         } else {
             anyhow::bail!("Service not installed. Run 'tinywatcher start --config <path>' first.");
@@ -377,10 +458,41 @@ impl ServiceManager for LaunchdManager {
         // Check both LaunchAgent and LaunchDaemon locations
         let agent_path = self.get_plist_path(false);
         let daemon_path = self.get_plist_path(true);
+        let running_as_root = super::is_elevated();
         
-        let (plist_path, is_daemon) = if daemon_path.exists() {
+        // Determine which service to stop based on what's installed and current privileges
+        let (plist_path, is_daemon) = if daemon_path.exists() && agent_path.exists() {
+            // Both exist - choose based on current user context
+            if running_as_root {
+                stdout.set_color(ColorSpec::new().set_fg(Some(Color::Yellow)))?;
+                write!(&mut stdout, "  ⚠")?;
+                stdout.reset()?;
+                writeln!(&mut stdout, " Detected both user and system services installed")?;
+                writeln!(&mut stdout, "  Stopping system service (LaunchDaemon) since running with sudo...")?;
+                (daemon_path, true)
+            } else {
+                stdout.set_color(ColorSpec::new().set_fg(Some(Color::Yellow)))?;
+                write!(&mut stdout, "  ⚠")?;
+                stdout.reset()?;
+                writeln!(&mut stdout, " Detected both user and system services installed")?;
+                writeln!(&mut stdout, "  Stopping user service (LaunchAgent)...")?;
+                (agent_path, false)
+            }
+        } else if daemon_path.exists() {
+            if !running_as_root {
+                anyhow::bail!(
+                    "System service (LaunchDaemon) is installed but requires sudo.\n\
+                    Run: sudo tinywatcher stop"
+                );
+            }
             (daemon_path, true)
         } else if agent_path.exists() {
+            if running_as_root {
+                anyhow::bail!(
+                    "User service (LaunchAgent) is installed.\n\
+                    Do not use sudo. Run: tinywatcher stop (without sudo)"
+                );
+            }
             (agent_path, false)
         } else {
             anyhow::bail!("Service not installed");
@@ -430,16 +542,38 @@ impl ServiceManager for LaunchdManager {
         // Check both LaunchAgent and LaunchDaemon locations
         let agent_path = self.get_plist_path(false);
         let daemon_path = self.get_plist_path(true);
+        let running_as_root = super::is_elevated();
         
-        if !agent_path.exists() && !daemon_path.exists() {
+        // Determine which service to check based on what's installed and current privileges
+        let plist_exists = if daemon_path.exists() && agent_path.exists() {
+            // Both exist - check the one that matches current user context
+            true
+        } else if daemon_path.exists() {
+            true
+        } else if agent_path.exists() {
+            true
+        } else {
+            return Ok(ServiceStatus::NotInstalled);
+        };
+        
+        if !plist_exists {
             return Ok(ServiceStatus::NotInstalled);
         }
         
-        // Check if service is loaded
-        let output = Command::new("launchctl")
-            .arg("list")
-            .output()
-            .context("Failed to query launchctl")?;
+        // Check if service is loaded in the appropriate context
+        let output = if running_as_root && daemon_path.exists() {
+            // Check system-level services
+            Command::new("sudo")
+                .args(&["launchctl", "list"])
+                .output()
+                .context("Failed to query launchctl")?
+        } else {
+            // Check user-level services
+            Command::new("launchctl")
+                .arg("list")
+                .output()
+                .context("Failed to query launchctl")?
+        };
         
         let output_str = String::from_utf8_lossy(&output.stdout);
         

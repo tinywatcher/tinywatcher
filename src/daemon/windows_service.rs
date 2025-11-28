@@ -21,12 +21,20 @@ impl ServiceManager for WindowsServiceManager {
     fn install(&self, config_path: Option<PathBuf>, needs_elevation: bool) -> Result<()> {
         let mut stdout = StandardStream::stdout(ColorChoice::Always);
         
+        // Check if running as Administrator
+        if !super::is_elevated() {
+            anyhow::bail!(
+                "Administrator privileges required to install Windows service.\n\
+                Please run this command from an elevated Command Prompt or PowerShell."
+            );
+        }
+        
         stdout.set_color(ColorSpec::new().set_fg(Some(Color::Cyan)).set_bold(true))?;
         write!(&mut stdout, "Installing")?;
         stdout.reset()?;
         writeln!(&mut stdout, " tinywatcher as a Windows service...")?;
         
-        if needs_elevation && !super::is_elevated() {
+        if needs_elevation {
             stdout.set_color(ColorSpec::new().set_fg(Some(Color::Yellow)))?;
             write!(&mut stdout, "  ⚠")?;
             stdout.reset()?;
@@ -117,6 +125,14 @@ impl ServiceManager for WindowsServiceManager {
     fn uninstall(&self) -> Result<()> {
         let mut stdout = StandardStream::stdout(ColorChoice::Always);
         
+        // Check if running as Administrator
+        if !super::is_elevated() {
+            anyhow::bail!(
+                "Administrator privileges required to uninstall Windows service.\n\
+                Please run this command from an elevated Command Prompt or PowerShell."
+            );
+        }
+        
         stdout.set_color(ColorSpec::new().set_fg(Some(Color::Yellow)).set_bold(true))?;
         write!(&mut stdout, "Uninstalling")?;
         stdout.reset()?;
@@ -163,6 +179,14 @@ impl ServiceManager for WindowsServiceManager {
     fn start(&self) -> Result<()> {
         let mut stdout = StandardStream::stdout(ColorChoice::Always);
         
+        // Check if running as Administrator
+        if !super::is_elevated() {
+            anyhow::bail!(
+                "Administrator privileges required to manage Windows service.\n\
+                Please run this command from an elevated Command Prompt or PowerShell."
+            );
+        }
+        
         stdout.set_color(ColorSpec::new().set_fg(Some(Color::Cyan)).set_bold(true))?;
         write!(&mut stdout, "Starting")?;
         stdout.reset()?;
@@ -202,6 +226,14 @@ impl ServiceManager for WindowsServiceManager {
 
     fn stop(&self) -> Result<()> {
         let mut stdout = StandardStream::stdout(ColorChoice::Always);
+        
+        // Check if running as Administrator
+        if !super::is_elevated() {
+            anyhow::bail!(
+                "Administrator privileges required to manage Windows service.\n\
+                Please run this command from an elevated Command Prompt or PowerShell."
+            );
+        }
         
         stdout.set_color(ColorSpec::new().set_fg(Some(Color::Red)).set_bold(true))?;
         write!(&mut stdout, "Stopping")?;

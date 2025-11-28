@@ -84,6 +84,21 @@ impl ServiceManager for SystemdManager {
         stdout.reset()?;
         writeln!(&mut stdout, " tinywatcher as a systemd {} service...", service_type)?;
         
+        // Check if opposite service type is already installed
+        let opposite_path = self.get_service_path(!system_service);
+        if opposite_path.exists() {
+            let opposite_type = if system_service { "user" } else { "system" };
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::Yellow)))?;
+            write!(&mut stdout, "  ⚠")?;
+            stdout.reset()?;
+            writeln!(&mut stdout, " Note: {} service is already installed at:", opposite_type)?;
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+            writeln!(&mut stdout, "    {}", opposite_path.display())?;
+            stdout.reset()?;
+            writeln!(&mut stdout, "  Both services will coexist. You can remove the {} service later if not needed.", opposite_type)?;
+            writeln!(&mut stdout)?;
+        }
+        
         if system_service && !super::is_elevated() {
             stdout.set_color(ColorSpec::new().set_fg(Some(Color::Yellow)))?;
             write!(&mut stdout, "  ⚠")?;
@@ -244,11 +259,46 @@ impl ServiceManager for SystemdManager {
         // Check both user and system service locations
         let user_service_path = self.get_service_path(false);
         let system_service_path = self.get_service_path(true);
+        let running_as_root = super::is_elevated();
         
-        let (service_path, is_system) = if system_service_path.exists() {
+        // Handle the case where both services exist
+        if system_service_path.exists() && user_service_path.exists() {
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::Yellow)))?;
+            write!(&mut stdout, "  ⚠")?;
+            stdout.reset()?;
+            writeln!(&mut stdout, " Detected both user and system services installed")?;
+            
+            if running_as_root {
+                writeln!(&mut stdout, "  Uninstalling system service...")?;
+                writeln!(&mut stdout)?;
+                stdout.set_color(ColorSpec::new().set_fg(Some(Color::Cyan)))?;
+                write!(&mut stdout, "  ℹ")?;
+                stdout.reset()?;
+                writeln!(&mut stdout, " To also remove user service, run: tinywatcher uninstall (without sudo)")?;
+            } else {
+                writeln!(&mut stdout, "  Uninstalling user service...")?;
+                writeln!(&mut stdout)?;
+                stdout.set_color(ColorSpec::new().set_fg(Some(Color::Cyan)))?;
+                write!(&mut stdout, "  ℹ")?;
+                stdout.reset()?;
+                writeln!(&mut stdout, " To also remove system service, run: sudo tinywatcher uninstall")?;
+            }
+        }
+        
+        let (service_path, is_system) = if system_service_path.exists() && running_as_root {
             (system_service_path, true)
-        } else if user_service_path.exists() {
+        } else if user_service_path.exists() && !running_as_root {
             (user_service_path, false)
+        } else if system_service_path.exists() && !running_as_root {
+            anyhow::bail!(
+                "System service is installed but requires sudo.\n\
+                Run: sudo tinywatcher uninstall"
+            );
+        } else if user_service_path.exists() && running_as_root {
+            anyhow::bail!(
+                "User service is installed.\n\
+                Do not use sudo. Run: tinywatcher uninstall (without sudo)"
+            );
         } else {
             stdout.set_color(ColorSpec::new().set_fg(Some(Color::Blue)))?;
             write!(&mut stdout, "  ℹ")?;
@@ -316,10 +366,41 @@ impl ServiceManager for SystemdManager {
         // Check both user and system service locations
         let user_service_path = self.get_service_path(false);
         let system_service_path = self.get_service_path(true);
+        let running_as_root = super::is_elevated();
         
-        let is_system = if system_service_path.exists() {
+        // Determine which service to use based on what's installed and current privileges
+        let is_system = if system_service_path.exists() && user_service_path.exists() {
+            // Both exist - choose based on current user context
+            if running_as_root {
+                stdout.set_color(ColorSpec::new().set_fg(Some(Color::Yellow)))?;
+                write!(&mut stdout, "  ⚠")?;
+                stdout.reset()?;
+                writeln!(&mut stdout, " Detected both user and system services installed")?;
+                writeln!(&mut stdout, "  Starting system service since running with sudo...")?;
+                true
+            } else {
+                stdout.set_color(ColorSpec::new().set_fg(Some(Color::Yellow)))?;
+                write!(&mut stdout, "  ⚠")?;
+                stdout.reset()?;
+                writeln!(&mut stdout, " Detected both user and system services installed")?;
+                writeln!(&mut stdout, "  Starting user service...")?;
+                false
+            }
+        } else if system_service_path.exists() {
+            if !running_as_root {
+                anyhow::bail!(
+                    "System service is installed but requires sudo.\n\
+                    Run: sudo tinywatcher start"
+                );
+            }
             true
         } else if user_service_path.exists() {
+            if running_as_root {
+                anyhow::bail!(
+                    "User service is installed.\n\
+                    Do not use sudo. Run: tinywatcher start (without sudo)"
+                );
+            }
             false
         } else {
             anyhow::bail!("Service not installed. Run 'tinywatcher start --config <path>' first.");
@@ -375,10 +456,41 @@ impl ServiceManager for SystemdManager {
         // Check both user and system service locations
         let user_service_path = self.get_service_path(false);
         let system_service_path = self.get_service_path(true);
+        let running_as_root = super::is_elevated();
         
-        let is_system = if system_service_path.exists() {
+        // Determine which service to stop based on what's installed and current privileges
+        let is_system = if system_service_path.exists() && user_service_path.exists() {
+            // Both exist - choose based on current user context
+            if running_as_root {
+                stdout.set_color(ColorSpec::new().set_fg(Some(Color::Yellow)))?;
+                write!(&mut stdout, "  ⚠")?;
+                stdout.reset()?;
+                writeln!(&mut stdout, " Detected both user and system services installed")?;
+                writeln!(&mut stdout, "  Stopping system service since running with sudo...")?;
+                true
+            } else {
+                stdout.set_color(ColorSpec::new().set_fg(Some(Color::Yellow)))?;
+                write!(&mut stdout, "  ⚠")?;
+                stdout.reset()?;
+                writeln!(&mut stdout, " Detected both user and system services installed")?;
+                writeln!(&mut stdout, "  Stopping user service...")?;
+                false
+            }
+        } else if system_service_path.exists() {
+            if !running_as_root {
+                anyhow::bail!(
+                    "System service is installed but requires sudo.\n\
+                    Run: sudo tinywatcher stop"
+                );
+            }
             true
         } else if user_service_path.exists() {
+            if running_as_root {
+                anyhow::bail!(
+                    "User service is installed.\n\
+                    Do not use sudo. Run: tinywatcher stop (without sudo)"
+                );
+            }
             false
         } else {
             anyhow::bail!("Service not installed");
@@ -419,21 +531,33 @@ impl ServiceManager for SystemdManager {
         // Check both user and system service locations
         let user_service_path = self.get_service_path(false);
         let system_service_path = self.get_service_path(true);
+        let running_as_root = super::is_elevated();
         
-        let is_system = if system_service_path.exists() {
+        // Determine which service to check based on what's installed and current privileges
+        let service_exists = if system_service_path.exists() && user_service_path.exists() {
+            // Both exist - check the one that matches current user context
+            true
+        } else if system_service_path.exists() {
             true
         } else if user_service_path.exists() {
-            false
+            true
         } else {
             return Ok(ServiceStatus::NotInstalled);
         };
         
-        let output = if is_system {
+        if !service_exists {
+            return Ok(ServiceStatus::NotInstalled);
+        }
+        
+        // Check if service is active in the appropriate context
+        let output = if running_as_root && system_service_path.exists() {
+            // Check system service
             Command::new("systemctl")
                 .args(&["is-active", &self.service_name])
                 .output()
                 .context("Failed to check service status")?
         } else {
+            // Check user service
             Command::new("systemctl")
                 .args(&["--user", "is-active", &self.service_name])
                 .output()

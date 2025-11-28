@@ -22,16 +22,8 @@ pub enum Commands {
     /// Watch logs and system resources
     Watch {
         /// Configuration file path
-        #[arg(long)]
-        config: Option<PathBuf>,
-
-        /// Watch specific log files
-        #[arg(short, long)]
-        file: Vec<PathBuf>,
-
-        /// Watch specific Docker containers
-        #[arg(short = 'c', long)]
-        container: Vec<String>,
+        #[arg(long, required = true)]
+        config: PathBuf,
 
         /// Disable resource monitoring
         #[arg(long)]

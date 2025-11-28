@@ -1,6 +1,20 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use regex::Regex;
+
+// Helper function to expand environment variables in strings
+fn expand_env_vars(value: &str) -> String {
+    let re = Regex::new(r"\$\{([^}]+)\}|\$([A-Za-z_][A-Za-z0-9_]*)").unwrap();
+    
+    re.replace_all(value, |caps: &regex::Captures| {
+        let var_name = caps.get(1).or_else(|| caps.get(2)).unwrap().as_str();
+        std::env::var(var_name).unwrap_or_else(|_| {
+            eprintln!("Warning: Environment variable '{}' not found, using empty string", var_name);
+            String::new()
+        })
+    }).to_string()
+}
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Config {
@@ -227,10 +241,60 @@ fn default_missed_threshold() -> u32 {
 impl Config {
     pub fn from_file(path: &str) -> anyhow::Result<Self> {
         let content = std::fs::read_to_string(path)?;
-        let config: Config = serde_yaml::from_str(&content)?;
+        let mut config: Config = serde_yaml::from_str(&content)?;
+        config.expand_env_vars();
         Ok(config)
     }
 
+    /// Expand environment variables in all string fields
+    fn expand_env_vars(&mut self) {
+        // Expand in alerts
+        for alert in self.alerts.values_mut() {
+            match &mut alert.options {
+                AlertOptions::Slack { url } => {
+                    *url = expand_env_vars(url);
+                }
+                AlertOptions::Webhook { url } => {
+                    *url = expand_env_vars(url);
+                }
+                AlertOptions::Email { from, to, smtp_server } => {
+                    *from = expand_env_vars(from);
+                    for email in to.iter_mut() {
+                        *email = expand_env_vars(email);
+                    }
+                    if let Some(server) = smtp_server {
+                        *server = expand_env_vars(server);
+                    }
+                }
+                AlertOptions::Stdout {} => {}
+            }
+        }
+
+        // Expand in streams
+        for stream in &mut self.inputs.streams {
+            stream.url = expand_env_vars(&stream.url);
+            if let Some(name) = &mut stream.name {
+                *name = expand_env_vars(name);
+            }
+            if let Some(headers) = &mut stream.headers {
+                for value in headers.values_mut() {
+                    *value = expand_env_vars(value);
+                }
+            }
+        }
+
+        // Expand in system checks
+        for check in &mut self.system_checks {
+            check.url = expand_env_vars(&check.url);
+        }
+
+        // Expand in identity
+        if let Some(name) = &mut self.identity.name {
+            *name = expand_env_vars(name);
+        }
+    }
+
+    #[allow(dead_code)]
     pub fn merge_with_cli(&mut self, files: Vec<PathBuf>, containers: Vec<String>) {
         if !files.is_empty() {
             self.inputs.files.extend(files);
@@ -290,6 +354,7 @@ impl Rule {
 
     /// Check if this rule applies to the given source
     /// Returns true if the rule has no sources filter (applies to all) or if the source matches
+    #[allow(dead_code)]
     pub fn applies_to_source(&self, source: &SourceType) -> bool {
         // If no sources filter is specified, rule applies to all sources
         let Some(ref sources) = self.sources else {
