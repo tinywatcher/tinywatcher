@@ -43,7 +43,8 @@ pub struct SystemCheck {
     pub timeout: u64,
     #[serde(default = "default_missed_threshold")]
     pub missed_threshold: u32,
-    pub alert: String,
+    #[serde(deserialize_with = "string_or_seq_string")]
+    pub alert: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
@@ -120,6 +121,19 @@ pub struct Alert {
 pub enum AlertOptions {
     Slack { url: String },
     Webhook { url: String },
+    Discord { url: String },
+    Telegram { 
+        bot_token: String, 
+        chat_id: String 
+    },
+    PagerDuty { 
+        routing_key: String 
+    },
+    Ntfy { 
+        topic: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        server: Option<String>,
+    },
     Email { 
         from: String, 
         to: Vec<String>,
@@ -135,6 +149,10 @@ pub enum AlertType {
     Stdout,
     Slack,
     Webhook,
+    Discord,
+    Telegram,
+    PagerDuty,
+    Ntfy,
     Email,
 }
 
@@ -215,7 +233,8 @@ pub struct ResourceThresholds {
     pub cpu_percent: Option<f32>,
     pub memory_percent: Option<f32>,
     pub disk_percent: Option<f32>,
-    pub alert: String,  // Now references alert name instead of type
+    #[serde(deserialize_with = "string_or_seq_string")]
+    pub alert: Vec<String>,  // Now references alert names (can be multiple)
 }
 
 fn default_cooldown() -> u64 {
@@ -256,6 +275,22 @@ impl Config {
                 }
                 AlertOptions::Webhook { url } => {
                     *url = expand_env_vars(url);
+                }
+                AlertOptions::Discord { url } => {
+                    *url = expand_env_vars(url);
+                }
+                AlertOptions::Telegram { bot_token, chat_id } => {
+                    *bot_token = expand_env_vars(bot_token);
+                    *chat_id = expand_env_vars(chat_id);
+                }
+                AlertOptions::PagerDuty { routing_key } => {
+                    *routing_key = expand_env_vars(routing_key);
+                }
+                AlertOptions::Ntfy { topic, server } => {
+                    *topic = expand_env_vars(topic);
+                    if let Some(srv) = server {
+                        *srv = expand_env_vars(srv);
+                    }
                 }
                 AlertOptions::Email { from, to, smtp_server } => {
                     *from = expand_env_vars(from);

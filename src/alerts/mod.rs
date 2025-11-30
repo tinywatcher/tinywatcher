@@ -1,6 +1,10 @@
+mod discord;
 mod email;
+mod ntfy;
+mod pagerduty;
 mod slack;
 mod stdout;
+mod telegram;
 mod webhook;
 
 use async_trait::async_trait;
@@ -10,9 +14,13 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
 
+pub use discord::DiscordAlert;
 pub use email::EmailAlert;
+pub use ntfy::NtfyAlert;
+pub use pagerduty::PagerDutyAlert;
 pub use slack::SlackAlert;
 pub use stdout::StdoutAlert;
+pub use telegram::TelegramAlert;
 pub use webhook::WebhookAlert;
 
 /// Trait that all alert handlers must implement

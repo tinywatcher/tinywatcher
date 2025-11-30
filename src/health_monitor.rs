@@ -18,7 +18,7 @@ pub struct HealthCheck {
     pub interval: u64,         // seconds between checks
     pub timeout_secs: u64,     // request timeout
     pub missed_threshold: u32, // how many failures before alert
-    pub alert: String,         // alert name to trigger
+    pub alert: Vec<String>,    // alert names to trigger
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -111,24 +111,22 @@ impl HealthMonitor {
                 Ok(()) => {
                     // Check succeeded
                     if is_down {
-                        // Service recovered
-                        tracing::info!("Health check '{}' recovered: {}", check.name, check.url);
-                        
-                        let message = format!(
-                            "Service '{}' is back UP\n\
-                            Identity: {}\n\
-                            URL: {}\n\
-                            Status: Healthy",
-                            check.name,
-                            identity,
-                            check.url
-                        );
+                    // Service recovered
+                    tracing::info!("Health check '{}' recovered: {}", check.name, check.url);
+                    
+                    let message = format!(
+                        "Service '{}' is back UP\n\
+                        Identity: {}\n\
+                        URL: {}\n\
+                        Status: Healthy",
+                        check.name,
+                        identity,
+                        check.url
+                    );
 
-                        if let Err(e) = alert_manager.send_alert(&check.alert, &check.name, &message, 0).await {
-                            tracing::error!("Failed to send recovery alert for '{}': {}", check.name, e);
-                        }
-
-                        is_down = false;
+                    if let Err(e) = alert_manager.send_alert_multi(&check.alert, &check.name, &message, 0).await {
+                        tracing::error!("Failed to send recovery alert for '{}': {}", check.name, e);
+                    }                        is_down = false;
                     }
                     consecutive_failures = 0;
                     tracing::debug!("Health check '{}' passed", check.name);
@@ -161,7 +159,7 @@ impl HealthMonitor {
                             e
                         );
 
-                        if let Err(e) = alert_manager.send_alert(&check.alert, &check.name, &message, 0).await {
+                        if let Err(e) = alert_manager.send_alert_multi(&check.alert, &check.name, &message, 0).await {
                             tracing::error!("Failed to send alert for '{}': {}", check.name, e);
                         }
                     }

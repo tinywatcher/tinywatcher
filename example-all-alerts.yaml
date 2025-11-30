@@ -1,0 +1,116 @@
+# Complete example showcasing all available alert destinations
+#
+# This configuration demonstrates how to set up and use all alert types
+# supported by TinyWatcher, including the newly added ones.
+
+identity:
+  name: production-server
+
+alerts:
+  # Standard output (for testing)
+  console:
+    type: stdout
+
+  # Slack - Team collaboration
+  slack-critical:
+    type: slack
+    url: "${SLACK_WEBHOOK_URL}"
+
+  # Discord - Similar to Slack
+  discord-alerts:
+    type: discord
+    url: "${DISCORD_WEBHOOK_URL}"
+
+  # Telegram - Personal/mobile notifications
+  telegram-personal:
+    type: telegram
+    bot_token: "${TELEGRAM_BOT_TOKEN}"
+    chat_id: "${TELEGRAM_CHAT_ID}"
+
+  # PagerDuty - Enterprise incident management
+  pagerduty-oncall:
+    type: pagerduty
+    routing_key: "${PAGERDUTY_ROUTING_KEY}"
+
+  # Ntfy.sh - Simple push notifications
+  ntfy-push:
+    type: ntfy
+    topic: "tinywatcher-${HOSTNAME:-server}"
+    server: "https://ntfy.sh"  # Optional, defaults to ntfy.sh
+
+  # Generic webhook - For custom integrations
+  webhook-custom:
+    type: webhook
+    url: "${CUSTOM_WEBHOOK_URL}"
+
+  # Email - Traditional notifications
+  email-admin:
+    type: email
+    from: "alerts@example.com"
+    to:
+      - "admin@example.com"
+      - "oncall@example.com"
+
+rules:
+  # Critical errors go to multiple destinations
+  - name: critical-errors
+    pattern: "CRITICAL|FATAL|PANIC"
+    alert:
+      - pagerduty-oncall    # Page the on-call team
+      - slack-critical       # Notify in Slack
+      - telegram-personal    # Send to personal device
+    cooldown: 300
+
+  # Regular errors to Discord and Ntfy
+  - name: application-errors
+    pattern: "ERROR"
+    alert:
+      - discord-alerts
+      - ntfy-push
+    cooldown: 600
+
+  # Warnings only to console and Discord
+  - name: warnings
+    pattern: "WARN|WARNING"
+    alert:
+      - console
+      - discord-alerts
+    cooldown: 900
+
+  # Authentication failures - security alerts
+  - name: auth-failures
+    pattern: "authentication failed|invalid credentials|unauthorized access"
+    alert:
+      - pagerduty-oncall
+      - email-admin
+      - telegram-personal
+    cooldown: 180
+
+  # Out of memory - critical system issue
+  - name: out-of-memory
+    pattern: "OutOfMemoryError|OOM|out of memory"
+    alert:
+      - pagerduty-oncall
+      - slack-critical
+    cooldown: 300
+
+inputs:
+  files:
+    - /var/log/app.log
+    - /var/log/system.log
+
+  # Docker containers
+  containers:
+    - nginx
+    - app-backend
+    - database
+
+system_checks:
+  # HTTP health check example
+  - name: api-health
+    type: http
+    url: "https://api.example.com/health"
+    interval: 60
+    timeout: 5
+    missed_threshold: 2
+    alert: pagerduty-oncall

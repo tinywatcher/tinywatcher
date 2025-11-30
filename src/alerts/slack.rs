@@ -23,7 +23,7 @@ impl SlackAlert {
 impl AlertHandler for SlackAlert {
     async fn send(&self, identity: &str, rule_name: &str, message: &str) -> Result<()> {
         let payload = json!({
-            "text": format!("🚨 *Alert: {}*\n*Host:* `{}`\n```{}```", rule_name, identity, message),
+            "text": format!("*Alert: {}*\n*Host:* `{}`\n```{}```", rule_name, identity, message),
             "username": "TinyWatcher",
             "icon_emoji": ":eyes:"
         });

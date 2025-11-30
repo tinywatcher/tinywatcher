@@ -1,0 +1,29 @@
+# Example configuration for PagerDuty alerts
+#
+# PagerDuty is an enterprise-grade incident management platform. This integration
+# uses the Events API v2 to create incidents for your on-call team.
+#
+# To set up:
+# 1. Log in to your PagerDuty account
+# 2. Go to Services → Service Directory
+# 3. Select a service or create a new one
+# 4. Go to the "Integrations" tab
+# 5. Click "Add an integration"
+# 6. Select "Events API V2"
+# 7. Copy the "Integration Key" (routing key)
+# 8. Paste it in the configuration below
+
+alerts:
+  my-pagerduty-alert:
+    type: pagerduty
+    routing_key: "your-integration-key-here"
+
+rules:
+  - name: production-error
+    pattern: "ERROR|Exception"
+    alert: my-pagerduty-alert
+    cooldown: 600
+
+inputs:
+  files:
+    - /var/log/production.log

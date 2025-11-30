@@ -48,7 +48,7 @@ impl ResourceMonitor {
                 
                 if let Err(e) = self
                     .alert_manager
-                    .send_alert(
+                    .send_alert_multi(
                         &self.config.thresholds.alert,
                         "cpu_threshold",
                         &message,
@@ -76,7 +76,7 @@ impl ResourceMonitor {
                 
                 if let Err(e) = self
                     .alert_manager
-                    .send_alert(
+                    .send_alert_multi(
                         &self.config.thresholds.alert,
                         "memory_threshold",
                         &message,
@@ -114,7 +114,7 @@ impl ResourceMonitor {
                     
                     if let Err(e) = self
                         .alert_manager
-                        .send_alert(
+                        .send_alert_multi(
                             &self.config.thresholds.alert,
                             "disk_threshold",
                             &message,

@@ -1,0 +1,37 @@
+# Example configuration for Ntfy.sh alerts
+#
+# Ntfy.sh is the simplest possible push notification service. No authentication
+# required for basic usage - just pick a topic name and subscribe to it!
+#
+# To set up:
+# 1. Choose a unique topic name (e.g., "myapp-alerts-xyz123")
+# 2. Subscribe to it on your phone:
+#    - iOS: https://apps.apple.com/us/app/ntfy/id1625396347
+#    - Android: https://play.google.com/store/apps/details?id=io.heckel.ntfy
+#    - Web: Visit https://ntfy.sh/your-topic-name
+# 3. Use the topic name in the configuration below
+#
+# For self-hosted ntfy server, specify the server URL.
+# For authentication and more features, see: https://docs.ntfy.sh
+
+alerts:
+  # Using public ntfy.sh server
+  my-ntfy-alert:
+    type: ntfy
+    topic: "tinywatcher-alerts-xyz123"  # Choose a unique topic name
+  
+  # Using self-hosted server
+  my-private-ntfy:
+    type: ntfy
+    topic: "alerts"
+    server: "https://ntfy.example.com"
+
+rules:
+  - name: warning-detector
+    pattern: "WARN|WARNING"
+    alert: my-ntfy-alert
+    cooldown: 300
+
+inputs:
+  files:
+    - /var/log/app.log

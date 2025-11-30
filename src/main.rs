@@ -122,6 +122,38 @@ async fn handle_watch(
                     continue;
                 }
             }
+            AlertType::Discord => {
+                if let AlertOptions::Discord { url } = &alert.options {
+                    Arc::new(alerts::DiscordAlert::new(name.clone(), url.clone()))
+                } else {
+                    tracing::error!("Invalid Discord alert configuration for '{}'", name);
+                    continue;
+                }
+            }
+            AlertType::Telegram => {
+                if let AlertOptions::Telegram { bot_token, chat_id } = &alert.options {
+                    Arc::new(alerts::TelegramAlert::new(name.clone(), bot_token.clone(), chat_id.clone()))
+                } else {
+                    tracing::error!("Invalid Telegram alert configuration for '{}'", name);
+                    continue;
+                }
+            }
+            AlertType::PagerDuty => {
+                if let AlertOptions::PagerDuty { routing_key } = &alert.options {
+                    Arc::new(alerts::PagerDutyAlert::new(name.clone(), routing_key.clone()))
+                } else {
+                    tracing::error!("Invalid PagerDuty alert configuration for '{}'", name);
+                    continue;
+                }
+            }
+            AlertType::Ntfy => {
+                if let AlertOptions::Ntfy { topic, server } = &alert.options {
+                    Arc::new(alerts::NtfyAlert::new(name.clone(), topic.clone(), server.clone()))
+                } else {
+                    tracing::error!("Invalid Ntfy alert configuration for '{}'", name);
+                    continue;
+                }
+            }
             AlertType::Email => {
                 #[cfg(unix)]
                 {
@@ -380,6 +412,34 @@ fn validate_config(config: &Config) -> Result<()> {
                 writeln!(&mut stdout, " → {}...", &url.chars().take(30).collect::<String>())?;
                 stdout.reset()?;
             }
+            crate::config::AlertOptions::Discord { url } => {
+                stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+                writeln!(&mut stdout, " → {}...", &url.chars().take(30).collect::<String>())?;
+                stdout.reset()?;
+            }
+            crate::config::AlertOptions::Telegram { bot_token, chat_id } => {
+                writeln!(&mut stdout)?;
+                stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+                writeln!(&mut stdout, "      Bot Token: {}...", &bot_token.chars().take(15).collect::<String>())?;
+                writeln!(&mut stdout, "      Chat ID: {}", chat_id)?;
+                stdout.reset()?;
+            }
+            crate::config::AlertOptions::PagerDuty { routing_key } => {
+                stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+                writeln!(&mut stdout, " → {}...", &routing_key.chars().take(15).collect::<String>())?;
+                stdout.reset()?;
+            }
+            crate::config::AlertOptions::Ntfy { topic, server } => {
+                writeln!(&mut stdout)?;
+                stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+                writeln!(&mut stdout, "      Topic: {}", topic)?;
+                if let Some(srv) = server {
+                    writeln!(&mut stdout, "      Server: {}", srv)?;
+                } else {
+                    writeln!(&mut stdout, "      Server: https://ntfy.sh")?;
+                }
+                stdout.reset()?;
+            }
             crate::config::AlertOptions::Email { from, to, smtp_server } => {
                 writeln!(&mut stdout)?;
                 stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
@@ -555,19 +615,21 @@ fn validate_config(config: &Config) -> Result<()> {
         }
         
         stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
-        write!(&mut stdout, "    Alert: ")?;
+        write!(&mut stdout, "    Alerts: ")?;
         stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)))?;
-        writeln!(&mut stdout, "{}", resources.thresholds.alert)?;
+        writeln!(&mut stdout, "{}", resources.thresholds.alert.join(", "))?;
         stdout.reset()?;
         
-        // Check if alert exists
-        if !config.alerts.contains_key(&resources.thresholds.alert) {
-            write!(&mut stdout, "    ")?;
-            stdout.set_color(ColorSpec::new().set_fg(Some(Color::Red)).set_bold(true))?;
-            write!(&mut stdout, "[ERROR]")?;
-            stdout.reset()?;
-            writeln!(&mut stdout, " Alert '{}' not found in configuration", resources.thresholds.alert)?;
-            anyhow::bail!("Resource monitoring references undefined alert '{}'", resources.thresholds.alert);
+        // Check if alerts exist
+        for alert_name in &resources.thresholds.alert {
+            if !config.alerts.contains_key(alert_name) {
+                write!(&mut stdout, "    ")?;
+                stdout.set_color(ColorSpec::new().set_fg(Some(Color::Red)).set_bold(true))?;
+                write!(&mut stdout, "[ERROR]")?;
+                stdout.reset()?;
+                writeln!(&mut stdout, " Alert '{}' not found in configuration", alert_name)?;
+                anyhow::bail!("Resource monitoring references undefined alert '{}'", alert_name);
+            }
         }
     } else {
         stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
@@ -618,19 +680,21 @@ fn validate_config(config: &Config) -> Result<()> {
             writeln!(&mut stdout, "{}", check.missed_threshold)?;
             
             stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
-            write!(&mut stdout, "    Alert: ")?;
+            write!(&mut stdout, "    Alerts: ")?;
             stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)))?;
-            writeln!(&mut stdout, "{}", check.alert)?;
+            writeln!(&mut stdout, "{}", check.alert.join(", "))?;
             stdout.reset()?;
             
-            // Check if alert exists
-            if !config.alerts.contains_key(&check.alert) {
-                write!(&mut stdout, "    ")?;
-                stdout.set_color(ColorSpec::new().set_fg(Some(Color::Red)).set_bold(true))?;
-                write!(&mut stdout, "[ERROR]")?;
-                stdout.reset()?;
-                writeln!(&mut stdout, " Alert '{}' not found in configuration", check.alert)?;
-                anyhow::bail!("System check '{}' references undefined alert '{}'", check.name, check.alert);
+            // Check if alerts exist
+            for alert_name in &check.alert {
+                if !config.alerts.contains_key(alert_name) {
+                    write!(&mut stdout, "    ")?;
+                    stdout.set_color(ColorSpec::new().set_fg(Some(Color::Red)).set_bold(true))?;
+                    write!(&mut stdout, "[ERROR]")?;
+                    stdout.reset()?;
+                    writeln!(&mut stdout, " Alert '{}' not found in configuration", alert_name)?;
+                    anyhow::bail!("System check '{}' references undefined alert '{}'", check.name, alert_name);
+                }
             }
         }
     } else {

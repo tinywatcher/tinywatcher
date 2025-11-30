@@ -1,0 +1,31 @@
+# Example configuration for Telegram alerts
+#
+# Telegram Bot API provides a powerful way to send notifications to users
+# or groups via a bot. Perfect for personal alerts and mobile notifications.
+#
+# To set up:
+# 1. Talk to @BotFather on Telegram
+# 2. Create a new bot with /newbot command
+# 3. Copy the bot token provided by BotFather
+# 4. Get your chat ID:
+#    - Start a chat with your bot
+#    - Send any message
+#    - Visit: https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates
+#    - Look for "chat":{"id": YOUR_CHAT_ID} in the response
+# 5. Or for group chats, add the bot to your group and use the group's chat ID
+
+alerts:
+  my-telegram-alert:
+    type: telegram
+    bot_token: "123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
+    chat_id: "987654321"  # Your personal chat ID or group ID (can be negative for groups)
+
+rules:
+  - name: critical-error
+    pattern: "CRITICAL|FATAL"
+    alert: my-telegram-alert
+    cooldown: 300
+
+inputs:
+  files:
+    - /var/log/app.log

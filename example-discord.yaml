@@ -1,0 +1,26 @@
+# Example configuration for Discord alerts
+#
+# Discord webhooks are similar to Slack webhooks. They provide a simple way
+# to send formatted messages to a Discord channel.
+#
+# To set up:
+# 1. Go to your Discord server settings
+# 2. Navigate to "Integrations" → "Webhooks"
+# 3. Click "New Webhook" or edit an existing one
+# 4. Copy the webhook URL
+# 5. Paste it in the configuration below
+
+alerts:
+  my-discord-alert:
+    type: discord
+    url: "https://discord.com/api/webhooks/123456789/your-webhook-token-here"
+
+rules:
+  - name: error-detector
+    pattern: "ERROR|FATAL"
+    alert: my-discord-alert
+    cooldown: 300
+
+inputs:
+  files:
+    - /var/log/app.log
