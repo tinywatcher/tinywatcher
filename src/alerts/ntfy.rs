@@ -26,7 +26,7 @@ impl AlertHandler for NtfyAlert {
         let url = format!("{}/{}", self.server, self.topic);
         
         let body = format!(
-            "🚨 Alert: {}\nHost: {}\n\n{}",
+            "Alert: {}\nHost: {}\n\n{}",
             rule_name, identity, message
         );
         
