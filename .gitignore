@@ -18,3 +18,5 @@ Thumbs.db
 # Config files with secrets
 config.yaml
 *.local.yaml
+
+file.yaml
