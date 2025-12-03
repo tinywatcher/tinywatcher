@@ -88,6 +88,8 @@ jobs:
     name: Create Release
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -99,15 +101,16 @@ jobs:
 
       - name: Create release archives
         run: |
+          mkdir -p release
           cd artifacts
           for dir in */; do
             dirname="${dir%/}"
             cd "$dirname"
             if [[ -f *.exe ]]; then
-              zip "../${dirname}.zip" *
+              zip "../../release/${dirname}.zip" *
             else
               chmod +x *
-              tar czf "../${dirname}.tar.gz" *
+              tar czf "../../release/${dirname}.tar.gz" *
             fi
             cd ..
           done
@@ -118,7 +121,7 @@ jobs:
           draft: false
           prerelease: false
           files: |
-            artifacts/*.tar.gz
-            artifacts/*.zip
+            release/*.tar.gz
+            release/*.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
