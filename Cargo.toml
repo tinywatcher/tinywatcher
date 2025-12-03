@@ -2,11 +2,11 @@
 name = "tinywatcher"
 version = "0.1.0"
 edition = "2021"
-authors = ["Your Name <your.email@example.com>"]
+authors = ["Alex Nemeth <alex@alexnemethdata.com>"]
 description = "A tiny, zero-infrastructure observability tool for logs and system resources"
 license = "MIT"
 readme = "README.md"
-repository = "https://github.com/yourusername/tinywatcher"
+repository = "https://github.com/tinywatcher/tinywatcher"
 
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }

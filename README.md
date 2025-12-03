@@ -1,6 +1,12 @@
+<p align="center">
+  <img src="logo.svg" alt="TinyWatcher Logo" width="150">
+</p>
+
 # TinyWatcher 
 
-**A tiny, cross-platform observability tool for logs and system resources. Zero infrastructure required.**
+**A free, open-source (MIT licensed) lightweight, single-binary log and system monitor designed for developers who need simple, actionable alerts without the complexity or cost of enterprise observability stacks.**
+
+✨ **100% Free Forever** • **MIT Licensed** • **No Vendor Lock-in**
 
 > "Finally, observability without the dashboards, agents, or cloud lock-in."
 
@@ -10,93 +16,190 @@
 
 TinyWatcher is a **single binary tool** that watches your logs and system metrics in real time and triggers alerts when things go wrong.
 
-It's designed for:
+### **Why TinyWatcher?**
 
-* **Small projects & MVPs**
-* **Solo developers or small teams**
-* **Docker or bare-metal deployments**
-* **Anyone tired of Prometheus, Datadog, or ELK for one VPS**
+Most monitoring solutions are overkill for small projects. TinyWatcher fills the gap between `tail -f` and full-blown observability platforms.
 
-With TinyWatcher, you get **actionable alerts** — not dashboards.
+Perfect for:
+
+* **Side projects and MVPs**
+* **Small production deployments**
+* **Development and staging environments**
+* **Quick debugging and incident response**
+
+### **Philosophy**
+
+TinyWatcher believes in **alerts over dashboards**. Instead of building pretty graphs you never look at, TinyWatcher sends you alerts when something goes wrong. It's designed to be set up in minutes and forgotten until it saves your weekend.
 
 ### **Production-Ready & Robust**
 
 Despite its tiny footprint, TinyWatcher is built for reliability:
 
-*  **Automatic reconnection** — Network hiccups? Container restarts? TinyWatcher reconnects automatically
-*  **Zero zombie processes** — Proper cleanup of all child processes, no resource leaks
-*  **DoS protection** — Line length limits prevent regex attacks from pathological logs
-*  **Exponential backoff** — Smart retry logic that doesn't hammer your systems
-*  **Clean shutdown** — Graceful termination with proper resource cleanup
-*  **Memory safe** — Bounded memory usage, no unbounded buffers
+* **Automatic reconnection** — Network hiccups? Container restarts? TinyWatcher reconnects automatically
+* **Zero zombie processes** — Proper cleanup of all child processes, no resource leaks
+* **DoS protection** — Line length limits prevent regex attacks from pathological logs
+* **Exponential backoff** — Smart retry logic that doesn't hammer your systems
+* **Clean shutdown** — Graceful termination with proper resource cleanup
+* **Memory safe** — Bounded memory usage, no unbounded buffers
 
 **~5-20 KB memory per monitor** • **Sub-millisecond regex matching** • **Production-tested**
 
 ---
 
-## **Features (v1 MVP)**
+## **Key Features**
 
-### **Log Monitoring**
+### **Single Binary**
+
+No agents, no databases, no complicated setup — just one binary to deploy
+
+### **Multiple Inputs**
 
 * Tail local log files (`/var/log/nginx/error.log`)
 * Stream logs from Docker containers (`docker logs -f`)
-* **⭐ Real-time log streaming** (WebSocket, HTTP, TCP) — Azure, AWS, K8s, and more!
-* **⭐ Source-specific rules** — apply rules only to specific files, containers, or streams
-* Regex-based rules for pattern matching
+* **Real-time log streaming** (WebSocket, HTTP, TCP) — Azure, AWS, K8s, and more!
+* **Source-specific rules** — apply rules only to specific files, containers, or streams
+
+### **Flexible Alerts**
+
+Send to Discord, Telegram, Slack, PagerDuty, Ntfy.sh, Webhooks, Email, or stdout
+
+* **Named alerts** — define multiple alerts of the same type with custom names
+* **Multi-destination rules** — send one rule to multiple alert destinations
+* **Identity tracking** — all alerts include the instance/hostname for easy identification
+
+### **Regex Patterns**
+
+* Match any log pattern with regex or exact text matching
 * Cooldown per rule to prevent alert spam
-* **⭐ Auto-reconnection** — monitors never die, automatic retry with exponential backoff
-
-### **Rule Testing**
-
-* **Check command** — test rules against recent logs without real-time monitoring
-* Highlights matched patterns in terminal output
-* Shows which rules triggered on which lines
-* Perfect for debugging rules before deployment
-
-### **Background Service Mode**
-
-* **⭐ Run as a system service** — persistent monitoring with auto-start on boot
-* **⭐ Cross-platform** — systemd (Linux), launchd (macOS), Windows Service
-* Automatic restart
-* Simple management: `start`, `stop`, `restart`, `status` commands
-* Perfect for production deployments
+* Case-insensitive matching by default
 
 ### **Resource Monitoring**
 
-* CPU usage alerts
-* Memory usage alerts
-* Disk usage alerts
+* Track CPU, memory, and disk usage
 * Configurable thresholds and intervals
+* Get alerted before things break
 
-### **System Health Checks**
+### **Health Checks**
 
-* **HTTP health checks** — monitor service availability and uptime
+* Monitor HTTP endpoints for availability
 * Configurable check intervals and timeouts
 * Failure thresholds to avoid false positives
 * Recovery alerts when services come back online
 * Perfect for monitoring APIs, databases, and microservices
 
-### **Alerts**
+### **Runs as Service**
 
-* **Named alerts** — define multiple alerts of the same type with custom names
-* **Multi-destination rules** — send one rule to multiple alert destinations
-* **Identity tracking** — all alerts include the instance/hostname for easy identification
-* stdout (immediate feedback)
-* Webhook (send JSON to any endpoint)
-* Slack (via webhook)
-* Email (via sendmail on Unix/macOS or SMTP)
+* Install as systemd, launchd, or Windows service
+* Automatic restart on crashes
+* Start automatically on boot
+* Simple management: `start`, `stop`, `restart`, `status` commands
+
+### **Optional Heartbeat Monitoring**
+
+Get alerted if TinyWatcher itself stops running (paid service) — because who monitors the monitor?
+
+### **Production-Ready & Robust**
+
+* **Automatic reconnection** — Network hiccups? Container restarts? TinyWatcher reconnects automatically
+* **Zero zombie processes** — Proper cleanup of all child processes, no resource leaks
+* **DoS protection** — Line length limits prevent regex attacks from pathological logs
+* **Exponential backoff** — Smart retry logic that doesn't hammer your systems
+* **Clean shutdown** — Graceful termination with proper resource cleanup
+* **Memory safe** — Bounded memory usage, no unbounded buffers
+
+**~5-20 KB memory per monitor** • **Sub-millisecond regex matching** • **Production-tested**
 
 ### **Configuration**
 
 * **YAML-based config** — familiar and editable by anyone
 * **Identity management** — set custom instance names or auto-detect hostname
+* **Environment variable support** — secure handling of secrets and credentials
 * One file can define log inputs, resource thresholds, and alert rules
 * Support for both single alert or array of alerts per rule
 * Minimal setup: drop in your YAML and run
 
 ---
 
-## **Example YAML Configuration**
+## **Installation**
+
+### **Binary Download**
+
+**Linux:**
+```bash
+curl -L https://github.com/tinywatcher/tinywatcher/releases/latest/download/tinywatcher-linux -o tinywatcher
+chmod +x tinywatcher
+sudo mv tinywatcher /usr/local/bin/
+```
+
+**macOS:**
+```bash
+curl -L https://github.com/tinywatcher/tinywatcher/releases/latest/download/tinywatcher-macos -o tinywatcher
+chmod +x tinywatcher
+sudo mv tinywatcher /usr/local/bin/
+```
+
+**Windows (PowerShell):**
+```powershell
+Invoke-WebRequest -Uri https://github.com/tinywatcher/tinywatcher/releases/latest/download/tinywatcher-windows.exe -OutFile tinywatcher.exe
+```
+
+### **Docker**
+
+```bash
+docker run -v $(pwd)/config.yaml:/config.yaml \
+  -v /var/log:/var/log:ro \
+  -v /var/run/docker.sock:/var/run/docker.sock:ro \
+  tinywatcher/tinywatcher watch --config /config.yaml
+```
+
+### **Build From Source**
+
+Requires Rust and Cargo installed. [Install Rust here](https://rustup.rs/).
+
+```bash
+git clone https://github.com/tinywatcher/tinywatcher
+cd tinywatcher
+cargo build --release
+sudo cp target/release/tinywatcher /usr/local/bin/
+```
+
+---
+
+## **First 60 Seconds**
+
+Get up and running in under a minute:
+
+```bash
+# 1. Create a minimal config
+cat > config.yaml << EOF
+inputs:
+  files:
+    - /var/log/nginx/error.log
+
+alerts:
+  slack:
+    type: slack
+    url: "YOUR_SLACK_WEBHOOK_URL"
+
+rules:
+  - name: nginx_errors
+    pattern: "error|crit"
+    alert: slack
+    cooldown: 300
+EOF
+
+# 2. Test it
+tinywatcher check --config config.yaml
+
+# 3. Start watching
+tinywatcher watch --config config.yaml
+```
+
+---
+
+## **Configuration Guide**
+
+### **Complete Example**
 
 ```yaml
 # Optional: Set a custom identity for this instance
@@ -104,12 +207,17 @@ Despite its tiny footprint, TinyWatcher is built for reliability:
 identity:
   name: my-api-server-1
 
+# Log sources
 inputs:
   files:
     - /var/log/nginx/error.log
   containers:
     - nginx
     - api
+  streams:
+    - name: azure_webapp
+      type: websocket
+      url: "wss://myapp.scm.azurewebsites.net/api/logstream"
 
 # Define named alerts - you can have multiple of the same type!
 alerts:
@@ -123,6 +231,23 @@ alerts:
   oncall_slack:
     type: slack
     url: "https://hooks.slack.com/services/YOUR/ONCALL/WEBHOOK"
+  
+  telegram_alerts:
+    type: telegram
+    bot_token: "${TELEGRAM_BOT_TOKEN}"
+    chat_id: "${TELEGRAM_CHAT_ID}"
+  
+  discord_alerts:
+    type: discord
+    url: "${DISCORD_WEBHOOK_URL}"
+  
+  pagerduty_oncall:
+    type: pagerduty
+    routing_key: "${PAGERDUTY_KEY}"
+  
+  ntfy_alerts:
+    type: ntfy
+    topic: "tinywatcher-alerts"
   
   webhook:
     type: webhook
@@ -142,18 +267,25 @@ rules:
   
   - name: critical_error
     pattern: "CRITICAL|FATAL"
-    alert: [oncall_slack, team_slack, webhook]  # send to all channels
+    alert: [pagerduty_oncall, telegram_alerts, discord_alerts]  # send to all channels
     cooldown: 10
+  
+  # Use exact text matching instead of regex
+  - name: auth_failures
+    text: "authentication failed"
+    alert: team_slack
+    cooldown: 120
 
+# Resource monitoring
 resources:
   interval: 10   # seconds
   thresholds:
     cpu_percent: 85
     memory_percent: 80
     disk_percent: 90
-    alert: team_slack  # references alert name
+    alert: team_slack  # can also be an array
 
-# Monitor service health with HTTP checks
+# Health checks
 system_checks:
   - name: api_health
     type: http
@@ -168,12 +300,39 @@ system_checks:
     url: "http://localhost:5432/health"
     interval: 60
     missed_threshold: 3
-    alert: team_slack
+    alert: [team_slack, pagerduty_oncall]  # multiple destinations
+
+# Optional: Heartbeat monitoring (paid service)
+heartbeat:
+  url: "https://heartbeat.tinywatcher.com/ping/your-unique-id"
+  interval: 60  # Send heartbeat every 60 seconds
 ```
+
+### **Environment Variables**
+
+All configurations support environment variable expansion for security. This is especially important for sensitive data like API tokens, webhook URLs, and credentials.
+
+```yaml
+alerts:
+  telegram-alerts:
+    type: telegram
+    bot_token: "${TELEGRAM_BOT_TOKEN}"
+    chat_id: "${TELEGRAM_CHAT_ID}"
+  
+  discord-alerts:
+    type: discord
+    url: "${DISCORD_WEBHOOK_URL}"
+  
+  ntfy-alerts:
+    type: ntfy
+    topic: "tinywatcher-${HOSTNAME}"
+```
+
+Environment variables can be used in any string value throughout your configuration file. Simply use the `${VAR_NAME}` syntax, and TinyWatcher will replace it with the actual value at runtime.
 
 ---
 
-## **🌐 Log Streaming (NEW!)**
+## **Log Streaming (NEW!)**
 
 TinyWatcher now supports real-time log streaming from cloud services and custom endpoints!
 
@@ -198,11 +357,11 @@ inputs:
       url: "localhost:514"
 ```
 
-**📖 See [STREAMING.md](STREAMING.md) for complete documentation and examples!**
+**See [STREAMING.md](STREAMING.md) for complete documentation and examples!**
 
 ---
 
-## **🎯 Source-Specific Rules (NEW!)**
+## **Source-Specific Rules (NEW!)**
 
 Apply rules only to specific sources for better organization and performance:
 
@@ -240,11 +399,11 @@ rules:
     cooldown: 60
 ```
 
-**📖 See [SOURCE_FILTERING.md](SOURCE_FILTERING.md) for complete documentation!**
+**See [SOURCE_FILTERING.md](SOURCE_FILTERING.md) for complete documentation!**
 
 ---
 
-## **🏷️ Identity Management**
+## **Identity Management**
 
 TinyWatcher automatically identifies which server or instance sent each alert:
 
@@ -317,7 +476,7 @@ This will:
 
 ---
 
-## **🔄 Daemon Mode**
+## **Daemon Mode**
 
 Run TinyWatcher as a persistent background service that starts automatically on boot and restarts on crashes. **Fully cross-platform** — works seamlessly on Linux (systemd), macOS (launchd), and Windows (Windows Service).
 
@@ -329,10 +488,10 @@ tinywatcher start --config config.yaml
 ```
 
 This will:
-- ✅ Install TinyWatcher as a system service
-- ✅ Start it immediately
-- ✅ Configure it to start automatically on boot
-- ✅ Auto-restart on crashes or failures
+- Install TinyWatcher as a system service
+- Start it immediately
+- Configure it to start automatically on boot
+- Auto-restart on crashes or failures
 
 ### Manage the service:
 
@@ -369,62 +528,234 @@ tail -f /tmp/tinywatcher.log
 
 ---
 
-## **Why TinyWatcher?**
+## **Alert Destinations**
 
-* **Zero infrastructure** — No DB, no agents, no cloud required
-* **Truly cross-platform** — Linux, macOS, Windows (same binary, same config)
-* **Background service mode** — Run as systemd/launchd/Windows Service with auto-start
-* **Minimal setup** — Drop in a YAML file and run, zero ceremony
-* **Single binary** — Easy to deploy in Docker, VMs, or bare metal
-* **Built for small teams** — Perfect for deployments that don't need enterprise observability
+TinyWatcher supports multiple alert destinations for maximum flexibility.
+
+### **Discord**
+
+Send alerts to Discord channels using webhooks.
+
+**Setup:**
+1. Open Discord server settings
+2. Navigate to Integrations → Webhooks
+3. Create/copy webhook URL
+
+```yaml
+alerts:
+  my-discord:
+    type: discord
+    url: "https://discord.com/api/webhooks/123456789/your-webhook-token"
+```
+
+### **Telegram**
+
+Send notifications via Telegram Bot API.
+
+**Setup:**
+1. Talk to @BotFather on Telegram: `/newbot`
+2. Copy the bot token
+3. Get your chat ID from `https://api.telegram.org/bot<BOT_TOKEN>/getUpdates`
+
+```yaml
+alerts:
+  telegram-alerts:
+    type: telegram
+    bot_token: "123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
+    chat_id: "987654321"
+```
+
+### **PagerDuty**
+
+Enterprise incident management using Events API v2.
+
+**Setup:**
+1. Go to Services → Service Directory
+2. Select/create service → Integrations tab
+3. Add Events API V2 integration
+4. Copy the Integration Key
+
+```yaml
+alerts:
+  pagerduty-oncall:
+    type: pagerduty
+    routing_key: "your-integration-key-here"
+```
+
+### **Ntfy.sh**
+
+Simple push notifications with no authentication required.
+
+**Setup:**
+1. Choose a unique topic name
+2. Subscribe on your device (iOS/Android/Web)
+3. Start receiving notifications!
+
+```yaml
+alerts:
+  ntfy-public:
+    type: ntfy
+    topic: "tinywatcher-alerts-xyz123"
+  
+  # Or self-hosted
+  ntfy-private:
+    type: ntfy
+    topic: "alerts"
+    server: "https://ntfy.example.com"
+```
+
+⚠️ **Security Note:** Choose a unique, hard-to-guess topic name for public ntfy.sh server.
+
+### **Slack**
+
+Send alerts to Slack channels using webhooks.
+
+```yaml
+alerts:
+  slack-team:
+    type: slack
+    url: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+```
+
+### **Webhook**
+
+Generic webhook for custom integrations.
+
+```yaml
+alerts:
+  custom-webhook:
+    type: webhook
+    url: "https://your-service.com/webhook"
+```
+
+**Payload Format:**
+```json
+{
+  "identity": "hostname",
+  "rule": "rule-name",
+  "message": "log message",
+  "timestamp": "2025-11-28T12:00:00Z",
+  "alert_name": "custom-webhook"
+}
+```
+
+### **Email**
+
+Send alerts via email using sendmail (Unix) or SMTP.
+
+```yaml
+# Unix (sendmail)
+alerts:
+  email-admin:
+    type: email
+    from: "alerts@example.com"
+    to:
+      - "admin@example.com"
+
+# Windows/SMTP
+alerts:
+  email-admin:
+    type: email
+    from: "alerts@example.com"
+    to:
+      - "admin@example.com"
+    smtp_server: "smtp.gmail.com:587"
+```
+
+### **Stdout**
+
+Output to console (useful for testing).
+
+```yaml
+alerts:
+  console:
+    type: stdout
+```
 
 ---
 
-## **Installation**
+## **Heartbeat Monitoring**
 
-### From Source
+💡 **Who monitors the monitor?**
 
-```bash
-# Clone the repository
-git clone https://github.com/yourusername/tinywatcher
-cd tinywatcher
+Our optional heartbeat monitoring service ensures TinyWatcher itself is running. If your TinyWatcher instance stops sending heartbeats, you'll receive an alert.
 
-# Build the binary
-cargo build --release
+### **Why You Need This**
 
-# The binary will be at target/release/tinywatcher
-./target/release/tinywatcher --help
+* **Silent Failures** — If TinyWatcher crashes, you won't get alerts
+* **Configuration Errors** — Misconfigurations might prevent startup
+* **Server Issues** — Network/resource problems could stop monitoring
+* **Peace of Mind** — Know your monitoring is working 24/7
+
+### **Setup**
+
+1. Sign up at [tinywatcher.com/heartbeat](https://tinywatcher.com/heartbeat)
+2. Get your unique heartbeat URL
+3. Add to config:
+
+```yaml
+heartbeat:
+  url: "https://heartbeat.tinywatcher.com/ping/your-unique-id"
+  interval: 60  # Send heartbeat every 60 seconds
 ```
 
-### From Releases
+4. Configure alert preferences (Discord, Telegram, Slack, Email, etc.)
+5. Set your threshold (e.g., alert if no heartbeat for 5 minutes)
 
-Download the latest release for your platform:
+### **Pricing**
 
-```bash
-# Linux / macOS
-curl -L https://github.com/yourusername/tinywatcher/releases/latest/download/tinywatcher.tar.gz | tar xz
-./tinywatcher --help
-```
+**Heartbeat monitoring is a paid service** that helps support TinyWatcher's development while keeping the core tool 100% free.
 
-### Docker
+| Plan | Price | Features |
+|------|-------|----------|
+| **Hobby** | $5/month | Up to 3 instances, 1-min intervals, Discord/Telegram/Email alerts |
+| **Pro** | $15/month | Unlimited instances, 30-sec intervals, all alert channels, priority support |
 
-Run as a Docker container:
+✅ **14-day free trial** • **Supporting open source**
 
-```bash
-docker run -v /var/run/docker.sock:/var/run/docker.sock \
-  -v $(pwd)/config.yaml:/config.yaml \
-  tinywatcher watch --config /config.yaml
-```
+[Get Started with Heartbeat →](https://tinywatcher.com/heartbeat)
 
 ---
 
-## **Building**
+## **Security**
 
-Requires Rust 1.70 or later.
+### **Handling Secrets**
+
+Never commit webhook URLs or API tokens to version control. Use environment variables:
+
+```yaml
+alerts:
+  slack:
+    type: slack
+    url: "${SLACK_WEBHOOK_URL}"
+  
+  telegram:
+    type: telegram
+    bot_token: "${TELEGRAM_BOT_TOKEN}"
+    chat_id: "${TELEGRAM_CHAT_ID}"
+```
+
+Or store config outside your repo:
+```bash
+tinywatcher watch --config /etc/tinywatcher/config.yaml
+```
+
+### **File Permissions**
+
+Protect your config file:
 
 ```bash
-cargo build --release
+chmod 600 config.yaml
+chown $USER:$USER config.yaml
 ```
+
+### **Production Best Practices**
+
+* Run as a dedicated user with minimal permissions
+* Only grant Docker socket access if monitoring containers
+* Use read-only volume mounts in Docker
+* Rotate webhook URLs periodically
+* Monitor TinyWatcher itself with Heartbeat Monitoring
 
 ---
 
@@ -443,10 +774,17 @@ alerts:
     type: stdout
 
 rules:
+  # Regex pattern matching
   - name: errors
     pattern: "ERROR|FATAL"
     alert: console
     cooldown: 60
+  
+  # Exact text matching
+  - name: auth_failure
+    text: "authentication failed"
+    alert: console
+    cooldown: 120
 ```
 
 ```bash
@@ -454,18 +792,19 @@ rules:
 tinywatcher check --config config.yaml -n 200
 
 # Output shows highlighted matches:
-# 📋 Testing 1 rules:
-#   • errors (pattern: ERROR|FATAL)
+# Testing 2 rules:
+#   - errors (pattern: ERROR|FATAL)
+#   - auth_failure (text: authentication failed)
 #
-# 🐳 Checking container: my-app
-#   ✓ [errors]
+# Checking container: my-app
+#   [errors]
 #     2024-11-20 10:15:23 - ERROR: Connection timeout
 #                           ^^^^^
-#   ✓ [errors]  
+#   [errors]  
 #     2024-11-20 10:16:45 - FATAL: Database unavailable
 #                           ^^^^^
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# ✅ Found 2 total matches
+# Found 2 total matches
 
 # Once satisfied, start real-time monitoring
 tinywatcher watch --config config.yaml
@@ -485,8 +824,9 @@ alerts:
     url: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
 
 rules:
+  # Use regex pattern
   - name: nginx_error
-    pattern: "\\[error\\]"
+    pattern: "\\[error\\]|\\[crit\\]"
     alert: slack
     cooldown: 300
 ```
@@ -495,12 +835,12 @@ rules:
 tinywatcher watch --config config.yaml
 ```
 
-### 3. Monitor Docker Container + System Resources
+### 3. Multi-Destination Critical Alerts
 
 ```yaml
 # config.yaml
 identity:
-  name: production-server-1  # Custom name for easy identification
+  name: production-server-1
 
 inputs:
   containers:
@@ -508,22 +848,38 @@ inputs:
     - postgres
 
 alerts:
-  webhook:
-    type: webhook
-    url: "https://api.example.com/alerts"
+  pagerduty_oncall:
+    type: pagerduty
+    routing_key: "${PAGERDUTY_KEY}"
+  
+  telegram_personal:
+    type: telegram
+    bot_token: "${TELEGRAM_BOT_TOKEN}"
+    chat_id: "${TELEGRAM_CHAT_ID}"
+  
+  discord_team:
+    type: discord
+    url: "${DISCORD_WEBHOOK_URL}"
 
 rules:
-  - name: app_error
-    pattern: "ERROR|FATAL"
-    alert: webhook
+  # Critical errors go to all channels for redundancy
+  - name: critical_error
+    pattern: "CRITICAL|FATAL|PANIC"
+    alert: [pagerduty_oncall, telegram_personal, discord_team]
     cooldown: 60
+  
+  # Regular errors only to team chat
+  - name: app_error
+    pattern: "ERROR"
+    alert: discord_team
+    cooldown: 300
 
 resources:
   interval: 30
   thresholds:
-    cpu_percent: 80
+    cpu_percent: 90
     memory_percent: 85
-    alert: webhook
+    alert: [pagerduty_oncall, telegram_personal]  # Critical resource alerts
 ```
 
 ```bash
@@ -669,32 +1025,77 @@ system_checks:
 tinywatcher start --config complete-monitoring.yaml
 
 # This single config monitors:
-# ✅ Application logs for errors
-# ✅ System CPU, memory, and disk usage
-# ✅ HTTP health of all services
-# ✅ Sends alerts to appropriate Slack channels
-# ✅ Runs 24/7 with automatic restart
+# - Application logs for errors
+# - System CPU, memory, and disk usage
+# - HTTP health of all services
+# - Sends alerts to appropriate Slack channels
+# - Runs 24/7 with automatic restart
 ```
 
-**📖 See [HEALTH_CHECKS.md](HEALTH_CHECKS.md) for complete health check documentation!**
+**See [HEALTH_CHECKS.md](HEALTH_CHECKS.md) for complete health check documentation!**
+
+---
+
+## **Troubleshooting**
+
+### **Regex patterns not matching**
+
+Use the `check` command to test patterns against real logs:
+
+```bash
+tinywatcher check --config config.yaml -n 200
+```
+
+Remember that patterns are case-insensitive by default. Escape special regex characters like `[ ] ( ) . * +`
+
+### **Docker permission denied**
+
+Add your user to the docker group:
+
+```bash
+sudo usermod -aG docker $USER
+# Requires logout/login
+```
+
+### **Service won't start**
+
+Check logs:
+
+```bash
+# Linux
+journalctl --user -u tinywatcher -f
+
+# macOS
+tail -f /tmp/tinywatcher.log
+```
+
+Verify config:
+```bash
+tinywatcher test --config config.yaml
+```
+
+### **Not receiving alerts**
+
+* Test webhook URL with `curl`
+* Verify cooldown period hasn't been triggered
+* Check that rule pattern actually matches your logs with `check` mode
+* Ensure environment variables are set correctly
+
+### **High CPU usage**
+
+* Reduce number of monitored sources
+* Increase cooldown periods
+* Avoid overly complex regex patterns
+* Use `text` matching instead of `pattern` for exact matches
 
 ---
 
 ## **Planned Enhancements (Post-MVP)**
 
 * JSON/structured log support
-* Multi-channel alerts (PagerDuty, Telegram, Email)
 * Auto-discover containers and logs
 * Simple local dashboard
 * Anomaly detection for spikes in logs or resources
-
----
-
-## **Philosophy**
-
-TinyWatcher exists because most small deployments **don't need enterprise observability** — they need **actionable alerts with zero setup**.
-
-It's inspired by TinyETL: **small, focused, reliable, and practical.**
 
 ---
 
@@ -712,4 +1113,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## **Support**
 
-If you encounter any issues or have questions, please file an issue on GitHub.
+If you encounter any issues or have questions, please file an issue on [GitHub](https://github.com/tinywatcher/tinywatcher).
