@@ -31,18 +31,7 @@ Perfect for:
 
 TinyWatcher believes in **alerts over dashboards**. Instead of building pretty graphs you never look at, TinyWatcher sends you alerts when something goes wrong. It's designed to be set up in minutes and forgotten until it saves your weekend.
 
-### **Production-Ready & Robust**
-
-Despite its tiny footprint, TinyWatcher is built for reliability:
-
-* **Automatic reconnection** — Network hiccups? Container restarts? TinyWatcher reconnects automatically
-* **Zero zombie processes** — Proper cleanup of all child processes, no resource leaks
-* **DoS protection** — Line length limits prevent regex attacks from pathological logs
-* **Exponential backoff** — Smart retry logic that doesn't hammer your systems
-* **Clean shutdown** — Graceful termination with proper resource cleanup
-* **Memory safe** — Bounded memory usage, no unbounded buffers
-
-**~5-20 KB memory per monitor** • **Sub-millisecond regex matching** • **Production-tested**
+**~5-20 KB memory per monitor** • **Sub-millisecond regex matching** 
 
 ---
 
@@ -50,7 +39,7 @@ Despite its tiny footprint, TinyWatcher is built for reliability:
 
 ### **Single Binary**
 
-No agents, no databases, no complicated setup — just one binary to deploy
+No agents, no databases, no complicated setup. Just one binary to deploy!
 
 ### **Multiple Inputs**
 
@@ -94,9 +83,9 @@ Send to Discord, Telegram, Slack, PagerDuty, Ntfy.sh, Webhooks, Email, or stdout
 * Start automatically on boot
 * Simple management: `start`, `stop`, `restart`, `status` commands
 
-### **Optional Heartbeat Monitoring**
+<!-- ### **Optional Heartbeat Monitoring**
 
-Get alerted if TinyWatcher itself stops running (paid service) — because who monitors the monitor?
+Get alerted if TinyWatcher itself stops running (paid service) — because who monitors the monitor? -->
 
 ### **Production-Ready & Robust**
 
@@ -124,33 +113,53 @@ Get alerted if TinyWatcher itself stops running (paid service) — because who m
 
 ### **Binary Download**
 
-**Linux:**
+**Linux (x86_64):**
 ```bash
-curl -L https://github.com/tinywatcher/tinywatcher/releases/latest/download/tinywatcher-linux -o tinywatcher
+curl -L https://github.com/tinywatcher/tinywatcher/releases/latest/download/tinywatcher-linux-x86_64.tar.gz -o tinywatcher-linux-x86_64.tar.gz
+tar -xzf tinywatcher-linux-x86_64.tar.gz
 chmod +x tinywatcher
 sudo mv tinywatcher /usr/local/bin/
 ```
 
-**macOS:**
+**Linux (ARM64):**
 ```bash
-curl -L https://github.com/tinywatcher/tinywatcher/releases/latest/download/tinywatcher-macos -o tinywatcher
+curl -L https://github.com/tinywatcher/tinywatcher/releases/latest/download/tinywatcher-linux-aarch64.tar.gz -o tinywatcher-linux-aarch64.tar.gz
+tar -xzf tinywatcher-linux-aarch64.tar.gz
 chmod +x tinywatcher
 sudo mv tinywatcher /usr/local/bin/
 ```
 
-**Windows (PowerShell):**
+**macOS (Apple Silicon):**
+```bash
+curl -L https://github.com/tinywatcher/tinywatcher/releases/latest/download/tinywatcher-macos-aarch64.tar.gz -o tinywatcher-macos-aarch64.tar.gz
+tar -xzf tinywatcher-macos-aarch64.tar.gz
+chmod +x tinywatcher
+sudo mv tinywatcher /usr/local/bin/
+```
+
+**macOS (Intel):**
+```bash
+curl -L https://github.com/tinywatcher/tinywatcher/releases/latest/download/tinywatcher-macos-x86_64.tar.gz -o tinywatcher-macos-x86_64.tar.gz
+tar -xzf tinywatcher-macos-x86_64.tar.gz
+chmod +x tinywatcher
+sudo mv tinywatcher /usr/local/bin/
+```
+
+**Windows (x86_64) (PowerShell):**
 ```powershell
-Invoke-WebRequest -Uri https://github.com/tinywatcher/tinywatcher/releases/latest/download/tinywatcher-windows.exe -OutFile tinywatcher.exe
+Invoke-WebRequest -Uri https://github.com/tinywatcher/tinywatcher/releases/latest/download/tinywatcher-windows-x86_64.exe.tar.gz -OutFile tinywatcher-windows-x86_64.exe.tar.gz
+tar -xzf tinywatcher-windows-x86_64.exe.tar.gz
+```
+
+**Windows (ARM64) (PowerShell):**
+```powershell
+Invoke-WebRequest -Uri https://github.com/tinywatcher/tinywatcher/releases/latest/download/tinywatcher-windows-aarch64.exe.tar.gz -OutFile tinywatcher-windows-aarch64.exe.tar.gz
+tar -xzf tinywatcher-windows-aarch64.exe.tar.gz
 ```
 
 ### **Docker**
 
-```bash
-docker run -v $(pwd)/config.yaml:/config.yaml \
-  -v /var/log:/var/log:ro \
-  -v /var/run/docker.sock:/var/run/docker.sock:ro \
-  tinywatcher/tinywatcher watch --config /config.yaml
-```
+> **Docker support is coming soon!**
 
 ### **Build From Source**
 
@@ -303,9 +312,9 @@ system_checks:
     alert: [team_slack, pagerduty_oncall]  # multiple destinations
 
 # Optional: Heartbeat monitoring (paid service)
-heartbeat:
-  url: "https://heartbeat.tinywatcher.com/ping/your-unique-id"
-  interval: 60  # Send heartbeat every 60 seconds
+# heartbeat:
+#   url: "https://heartbeat.tinywatcher.com/ping/your-unique-id"
+#   interval: 60  # Send heartbeat every 60 seconds
 ```
 
 ### **Environment Variables**
@@ -357,8 +366,6 @@ inputs:
       url: "localhost:514"
 ```
 
-**See [STREAMING.md](STREAMING.md) for complete documentation and examples!**
-
 ---
 
 ## **Source-Specific Rules (NEW!)**
@@ -398,8 +405,6 @@ rules:
     alert: oncall_slack
     cooldown: 60
 ```
-
-**See [SOURCE_FILTERING.md](SOURCE_FILTERING.md) for complete documentation!**
 
 ---
 
@@ -674,7 +679,7 @@ alerts:
 
 ---
 
-## **Heartbeat Monitoring**
+<!-- ## **Heartbeat Monitoring**
 
 💡 **Who monitors the monitor?**
 
@@ -713,7 +718,7 @@ heartbeat:
 
 ✅ **14-day free trial** • **Supporting open source**
 
-[Get Started with Heartbeat →](https://tinywatcher.com/heartbeat)
+[Get Started with Heartbeat →](https://tinywatcher.com/heartbeat) -->
 
 ---
 
@@ -755,7 +760,7 @@ chown $USER:$USER config.yaml
 * Only grant Docker socket access if monitoring containers
 * Use read-only volume mounts in Docker
 * Rotate webhook URLs periodically
-* Monitor TinyWatcher itself with Heartbeat Monitoring
+<!-- * Monitor TinyWatcher itself with Heartbeat Monitoring -->
 
 ---
 
@@ -1031,8 +1036,6 @@ tinywatcher start --config complete-monitoring.yaml
 # - Sends alerts to appropriate Slack channels
 # - Runs 24/7 with automatic restart
 ```
-
-**See [HEALTH_CHECKS.md](HEALTH_CHECKS.md) for complete health check documentation!**
 
 ---
 
