@@ -1,0 +1,46 @@
+# SendGrid Alert Configuration Example
+#
+# This example demonstrates how to configure SendGrid email alerts
+# using the SendGrid API (v3).
+#
+# Prerequisites:
+# 1. Sign up for a SendGrid account at https://sendgrid.com
+# 2. Create an API key in SendGrid dashboard (Settings > API Keys)
+# 3. Verify your sender email address/domain in SendGrid
+# 4. Set your API key as an environment variable: SENDGRID_API_KEY
+
+identity:
+  name: production-server
+
+alerts:
+  # SendGrid email alert
+  sendgrid-critical:
+    type: sendgrid
+    api_key: "${SENDGRID_API_KEY}"
+    from: "alerts@yourdomain.com"  # Must be verified in SendGrid
+    to:
+      - "admin@yourdomain.com"
+      - "oncall@yourdomain.com"
+
+  # Console output for testing
+  console:
+    type: stdout
+
+inputs:
+  files:
+    - /var/log/app.log
+
+rules:
+  # Critical error detection
+  - name: critical-error
+    text: "CRITICAL"
+    alert: sendgrid-critical
+    cooldown: 300  # 5 minutes between alerts
+
+  # Test rule with both console and SendGrid
+  - name: error-detection
+    pattern: "ERROR|FATAL"
+    alert:
+      - console
+      - sendgrid-critical
+    cooldown: 60

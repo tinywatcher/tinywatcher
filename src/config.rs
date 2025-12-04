@@ -220,6 +220,11 @@ pub enum AlertOptions {
         #[serde(skip_serializing_if = "Option::is_none")]
         smtp_server: Option<String>,
     },
+    SendGrid {
+        api_key: String,
+        from: String,
+        to: Vec<String>,
+    },
     Stdout {},
 }
 
@@ -234,6 +239,7 @@ pub enum AlertType {
     PagerDuty,
     Ntfy,
     Email,
+    SendGrid,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -432,6 +438,13 @@ impl Config {
                     }
                     if let Some(server) = smtp_server {
                         *server = expand_env_vars(server);
+                    }
+                }
+                AlertOptions::SendGrid { api_key, from, to } => {
+                    *api_key = expand_env_vars(api_key);
+                    *from = expand_env_vars(from);
+                    for email in to.iter_mut() {
+                        *email = expand_env_vars(email);
                     }
                 }
                 AlertOptions::Stdout {} => {}

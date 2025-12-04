@@ -51,6 +51,15 @@ alerts:
       - "admin@example.com"
       - "oncall@example.com"
 
+  # SendGrid - API-based email delivery
+  sendgrid-team:
+    type: sendgrid
+    api_key: "${SENDGRID_API_KEY}"
+    from: "alerts@example.com"
+    to:
+      - "team@example.com"
+      - "devops@example.com"
+
 rules:
   # Critical errors go to multiple destinations
   - name: critical-errors

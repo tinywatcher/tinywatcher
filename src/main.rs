@@ -175,6 +175,14 @@ async fn handle_watch(
                     }
                 }
             }
+            AlertType::SendGrid => {
+                if let AlertOptions::SendGrid { api_key, from, to } = &alert.options {
+                    Arc::new(alerts::SendGridAlert::new(name.clone(), api_key.clone(), from.clone(), to.clone()))
+                } else {
+                    tracing::error!("Invalid SendGrid alert configuration for '{}'", name);
+                    continue;
+                }
+            }
         };
         
         alert_manager.register(name.clone(), handler);
@@ -453,6 +461,14 @@ fn validate_config(config: &Config) -> Result<()> {
                 if let Some(server) = smtp_server {
                     writeln!(&mut stdout, "      SMTP: {}", server)?;
                 }
+                stdout.reset()?;
+            }
+            crate::config::AlertOptions::SendGrid { api_key, from, to } => {
+                writeln!(&mut stdout)?;
+                stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+                writeln!(&mut stdout, "      From: {}", from)?;
+                writeln!(&mut stdout, "      To: [{}]", to.join(", "))?;
+                writeln!(&mut stdout, "      API Key: {}...", &api_key.chars().take(15).collect::<String>())?;
                 stdout.reset()?;
             }
             crate::config::AlertOptions::Stdout {} => {

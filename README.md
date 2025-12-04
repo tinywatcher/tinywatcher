@@ -51,7 +51,7 @@ No agents, no databases, no complicated setup. Just one binary to deploy!
 
 ### **Flexible Alerts**
 
-Send to Discord, Telegram, Slack, PagerDuty, Ntfy.sh, Webhooks, Email, or stdout
+Send to Discord, Telegram, Slack, PagerDuty, Ntfy.sh, Webhooks, Email, SendGrid, or stdout
 
 * **Named alerts** — define multiple alerts of the same type with custom names
 * **Multi-destination rules** — send one rule to multiple alert destinations
@@ -707,6 +707,27 @@ alerts:
       - "admin@example.com"
     smtp_server: "smtp.gmail.com:587"
 ```
+
+### **SendGrid**
+
+Send alerts via SendGrid's API (requires API key).
+
+```yaml
+alerts:
+  sendgrid-team:
+    type: sendgrid
+    api_key: "${SENDGRID_API_KEY}"
+    from: "alerts@yourdomain.com"  # Must be verified in SendGrid
+    to:
+      - "team@example.com"
+      - "oncall@example.com"
+```
+
+**Setup:**
+1. Sign up at [SendGrid](https://sendgrid.com)
+2. Create an API key in Settings > API Keys
+3. Verify your sender email/domain
+4. Set `SENDGRID_API_KEY` environment variable
 
 ### **Stdout**
 
