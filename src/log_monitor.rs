@@ -1,13 +1,15 @@
 use crate::alerts::AlertManager;
-use crate::config::{MatchType, Rule, SourceType};
+use crate::config::{MatchType, Rule, SourceType, Threshold};
 use anyhow::{Context, Result};
 use regex::Regex;
+use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
+use tokio::sync::Mutex;
 
 /// Maximum line length to prevent regex DoS
 const MAX_LINE_LENGTH: usize = 10_000;
@@ -29,6 +31,9 @@ struct CompiledRule {
     alert_names: Vec<String>,
     cooldown: u64,
     sources: Option<crate::config::RuleSources>,
+    threshold: Option<Threshold>,
+    /// Sliding window of match timestamps for threshold tracking
+    match_history: Arc<Mutex<VecDeque<Instant>>>,
 }
 
 enum RuleMatcher {
@@ -56,6 +61,8 @@ impl LogMonitor {
                     alert_names: rule.alert,
                     cooldown: rule.cooldown,
                     sources: rule.sources,
+                    threshold: rule.threshold,
+                    match_history: Arc::new(Mutex::new(VecDeque::new())),
                 })
             })
             .collect::<Result<Vec<_>>>()?;
@@ -291,15 +298,68 @@ impl LogMonitor {
             if matched {
                 tracing::debug!("Rule '{}' matched line from {:?}: {}", rule.name, source, line);
                 
-                // Send alert to all configured destinations
-                if let Err(e) = self
-                    .alert_manager
-                    .send_alert_multi(&rule.alert_names, &rule.name, line, rule.cooldown)
-                    .await
-                {
-                    tracing::error!("Failed to send alert for rule '{}': {}", rule.name, e);
+                // Check if we should alert based on threshold
+                let should_alert = if let Some(ref threshold) = rule.threshold {
+                    self.check_threshold(rule, threshold).await
+                } else {
+                    // No threshold, alert immediately
+                    true
+                };
+
+                if should_alert {
+                    // Send alert to all configured destinations
+                    if let Err(e) = self
+                        .alert_manager
+                        .send_alert_multi(&rule.alert_names, &rule.name, line, rule.cooldown)
+                        .await
+                    {
+                        tracing::error!("Failed to send alert for rule '{}': {}", rule.name, e);
+                    }
                 }
             }
+        }
+    }
+
+    /// Check if threshold is exceeded and record the match
+    /// Returns true if we should send an alert
+    async fn check_threshold(&self, rule: &CompiledRule, threshold: &Threshold) -> bool {
+        let now = Instant::now();
+        let mut history = rule.match_history.lock().await;
+        
+        // Add current match
+        history.push_back(now);
+        
+        // Remove old matches outside the time window
+        let cutoff = now - threshold.window;
+        while let Some(&oldest) = history.front() {
+            if oldest < cutoff {
+                history.pop_front();
+            } else {
+                break;
+            }
+        }
+        
+        // Check if threshold is exceeded
+        let count = history.len();
+        if count >= threshold.count as usize {
+            tracing::info!(
+                "Threshold exceeded for rule '{}': {} matches in {:?}",
+                rule.name,
+                count,
+                threshold.window
+            );
+            // Clear history after alerting to avoid repeated alerts
+            history.clear();
+            true
+        } else {
+            tracing::debug!(
+                "Rule '{}' matched but threshold not reached: {}/{} in {:?}",
+                rule.name,
+                count,
+                threshold.count,
+                threshold.window
+            );
+            false
         }
     }
 
@@ -342,6 +402,8 @@ impl LogMonitor {
                 alert_names: r.alert_names.clone(),
                 cooldown: r.cooldown,
                 sources: r.sources.clone(),
+                threshold: r.threshold.clone(),
+                match_history: r.match_history.clone(),
             }).collect(),
             alert_manager: self.alert_manager.clone(),
         }

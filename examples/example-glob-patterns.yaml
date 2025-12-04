@@ -1,0 +1,37 @@
+# Example configuration demonstrating glob pattern support for file monitoring
+#
+# Glob patterns allow you to watch multiple files matching a pattern without
+# listing each file individually. This is especially useful for:
+# - Rotating logs (e.g., app-2024-12-01.log, app-2024-12-02.log)
+# - Multiple log files in a directory (e.g., error.log, access.log)
+# - Logs from multiple services (e.g., /var/log/services/*/error.log)
+
+identity:
+  name: "glob-example-server"
+
+inputs:
+  # Watch all .log files in the current directory
+  files:
+    - "*.log"
+    
+    # Watch all log files in a specific directory
+    # - "/var/log/myapp/*.log"
+    
+    # Watch error logs from all services
+    # - "/var/log/services/*/error.log"
+    
+    # Watch all access logs recursively (use ** for recursive)
+    # - "/var/log/**/access.log"
+    
+    # Watch today's rotating log file
+    # - "/var/log/app-*.log"
+
+alerts:
+  stdout:
+    type: stdout
+
+rules:
+  - name: "error-detected"
+    text: "ERROR"
+    alert: stdout
+    cooldown: 10

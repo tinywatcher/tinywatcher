@@ -53,6 +53,7 @@ mod tests {
             timeout_secs: 5,
             missed_threshold: 2,
             alert: vec!["slack".to_string()],
+            threshold: None,
         };
 
         assert_eq!(check.name, "test_api");
@@ -71,6 +72,7 @@ mod tests {
             timeout_secs: 5,
             missed_threshold: 2,
             alert: vec!["slack".to_string()],
+            threshold: None,
         }];
 
         let alert_manager = Arc::new(AlertManager::new("test-server".to_string()));
@@ -91,6 +93,7 @@ mod tests {
                 timeout_secs: 5,
                 missed_threshold: 2,
                 alert: vec!["slack".to_string()],
+            threshold: None,
             },
             HealthCheck {
                 name: "database".to_string(),
@@ -100,6 +103,7 @@ mod tests {
                 timeout_secs: 10,
                 missed_threshold: 3,
                 alert: vec!["pagerduty".to_string()],
+            threshold: None,
             },
         ];
 
@@ -121,6 +125,7 @@ mod tests {
             timeout_secs: 5,
             missed_threshold: 2,
             alert: vec!["slack".to_string(), "pagerduty".to_string(), "discord".to_string()],
+            threshold: None,
         };
 
         assert_eq!(check.alert.len(), 3);
@@ -140,6 +145,7 @@ mod tests {
             timeout_secs: 3,
             missed_threshold: 1,
             alert: vec!["stdout".to_string()],
+            threshold: None,
         };
 
         assert_eq!(check.interval, 10);
@@ -158,6 +164,7 @@ mod tests {
             timeout_secs: 1, // But we only wait 1 second
             missed_threshold: 1,
             alert: vec!["slack".to_string()],
+            threshold: None,
         };
 
         let result = HealthMonitor::perform_check(&check).await;
@@ -177,6 +184,7 @@ mod tests {
             timeout_secs: 10,
             missed_threshold: 2,
             alert: vec!["slack".to_string()],
+            threshold: None,
         };
 
         let result = HealthMonitor::perform_check(&check).await;
@@ -197,6 +205,7 @@ mod tests {
             timeout_secs: 10,
             missed_threshold: 2,
             alert: vec!["slack".to_string()],
+            threshold: None,
         };
 
         let result = HealthMonitor::perform_check(&check).await;
@@ -216,6 +225,7 @@ mod tests {
             timeout_secs: 10,
             missed_threshold: 2,
             alert: vec!["slack".to_string()],
+            threshold: None,
         };
 
         let result = HealthMonitor::perform_check(&check).await;
@@ -234,6 +244,7 @@ mod tests {
             timeout_secs: 2,
             missed_threshold: 2,
             alert: vec!["slack".to_string()],
+            threshold: None,
         };
 
         let result = HealthMonitor::perform_check(&check).await;
@@ -250,6 +261,7 @@ mod tests {
             timeout_secs: 5,
             missed_threshold: 2,
             alert: vec!["slack".to_string()],
+            threshold: None,
         };
 
         let cloned = check.clone();
@@ -274,6 +286,7 @@ mod tests {
             timeout_secs: 5,
             missed_threshold: 2,
             alert: vec!["slack".to_string()],
+            threshold: None,
         };
 
         let debug_str = format!("{:?}", check);

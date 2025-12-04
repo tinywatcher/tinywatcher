@@ -32,6 +32,7 @@ mod tests {
             alert: vec!["slack".to_string()],
             cooldown: 60,
             sources: None,
+            threshold: None,
         };
         
         assert!(rule.validate().is_err());
@@ -46,6 +47,7 @@ mod tests {
             alert: vec!["slack".to_string()],
             cooldown: 60,
             sources: None,
+            threshold: None,
         };
         
         assert!(rule.validate().is_err());
@@ -60,6 +62,7 @@ mod tests {
             alert: vec!["slack".to_string()],
             cooldown: 60,
             sources: None,
+            threshold: None,
         };
         
         assert!(rule.validate().is_ok());
@@ -74,6 +77,7 @@ mod tests {
             alert: vec!["slack".to_string()],
             cooldown: 60,
             sources: None,
+            threshold: None,
         };
         
         assert!(rule.validate().is_ok());
@@ -88,6 +92,7 @@ mod tests {
             alert: vec!["slack".to_string()],
             cooldown: 60,
             sources: None,
+            threshold: None,
         };
         
         match rule.match_type() {
@@ -105,6 +110,7 @@ mod tests {
             alert: vec!["slack".to_string()],
             cooldown: 60,
             sources: None,
+            threshold: None,
         };
         
         match rule.match_type() {
@@ -122,6 +128,7 @@ mod tests {
             alert: vec!["slack".to_string()],
             cooldown: 60,
             sources: None,
+            threshold: None,
         };
         
         // Should apply to all sources when no filter is specified
@@ -143,6 +150,7 @@ mod tests {
                 containers: vec![],
                 streams: vec![],
             }),
+            threshold: None,
         };
         
         // Should match the specified file
@@ -169,6 +177,7 @@ mod tests {
                 containers: vec!["nginx".to_string(), "api".to_string()],
                 streams: vec![],
             }),
+            threshold: None,
         };
         
         // Should match specified containers
@@ -196,6 +205,7 @@ mod tests {
                 containers: vec![],
                 streams: vec!["azure_webapp".to_string()],
             }),
+            threshold: None,
         };
         
         // Should match specified stream
@@ -440,5 +450,389 @@ alert: slack
         assert_eq!(check.interval, 60);
         assert_eq!(check.timeout, 10);
         assert_eq!(check.missed_threshold, 3);
+    }
+
+    #[test]
+    fn test_threshold_parse_seconds() {
+        let threshold = Threshold::parse("5 in 2s").unwrap();
+        assert_eq!(threshold.count, 5);
+        assert_eq!(threshold.window.as_secs(), 2);
+    }
+
+    #[test]
+    fn test_threshold_parse_milliseconds() {
+        let threshold = Threshold::parse("3 in 500ms").unwrap();
+        assert_eq!(threshold.count, 3);
+        assert_eq!(threshold.window.as_millis(), 500);
+    }
+
+    #[test]
+    fn test_threshold_parse_minutes() {
+        let threshold = Threshold::parse("10 in 1m").unwrap();
+        assert_eq!(threshold.count, 10);
+        assert_eq!(threshold.window.as_secs(), 60);
+    }
+
+    #[test]
+    fn test_threshold_parse_hours() {
+        let threshold = Threshold::parse("100 in 1h").unwrap();
+        assert_eq!(threshold.count, 100);
+        assert_eq!(threshold.window.as_secs(), 3600);
+    }
+
+    #[test]
+    fn test_threshold_parse_with_whitespace() {
+        let threshold = Threshold::parse("  5  in  2s  ").unwrap();
+        assert_eq!(threshold.count, 5);
+        assert_eq!(threshold.window.as_secs(), 2);
+    }
+
+    #[test]
+    fn test_threshold_parse_large_values() {
+        let threshold = Threshold::parse("1000 in 24h").unwrap();
+        assert_eq!(threshold.count, 1000);
+        assert_eq!(threshold.window.as_secs(), 24 * 3600);
+    }
+
+    #[test]
+    fn test_threshold_parse_invalid_format() {
+        assert!(Threshold::parse("5 2s").is_err());
+        assert!(Threshold::parse("5in2s").is_err());
+        assert!(Threshold::parse("5 at 2s").is_err());
+        assert!(Threshold::parse("five in 2s").is_err());
+    }
+
+    #[test]
+    fn test_threshold_parse_invalid_unit() {
+        assert!(Threshold::parse("5 in 2d").is_err());
+        assert!(Threshold::parse("5 in 2x").is_err());
+    }
+
+    #[test]
+    fn test_threshold_serde_deserialize() {
+        let yaml = r#"
+name: test_rule
+text: "error"
+alert: slack
+threshold: "5 in 2s"
+"#;
+        let rule: Rule = serde_yaml::from_str(yaml).unwrap();
+        assert!(rule.threshold.is_some());
+        let threshold = rule.threshold.unwrap();
+        assert_eq!(threshold.count, 5);
+        assert_eq!(threshold.window.as_secs(), 2);
+    }
+
+    #[test]
+    fn test_threshold_serde_serialize() {
+        let threshold = Threshold {
+            count: 5,
+            window: std::time::Duration::from_secs(2),
+        };
+        let serialized = serde_yaml::to_string(&threshold).unwrap();
+        assert!(serialized.contains("5 in 2s") || serialized.contains("\"5 in 2s\""));
+    }
+
+    #[test]
+    fn test_rule_with_threshold() {
+        let yaml = r#"
+name: rate_limited_error
+pattern: "ERROR"
+alert: oncall
+threshold: "10 in 1m"
+cooldown: 300
+"#;
+        let rule: Rule = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(rule.name, "rate_limited_error");
+        assert!(rule.threshold.is_some());
+        let threshold = rule.threshold.unwrap();
+        assert_eq!(threshold.count, 10);
+        assert_eq!(threshold.window.as_secs(), 60);
+    }
+
+    #[test]
+    fn test_system_check_with_threshold() {
+        let yaml = r#"
+name: api_health
+type: http
+url: "http://localhost:8080/health"
+threshold: "3 in 1m"
+alert: slack
+"#;
+        let check: SystemCheck = serde_yaml::from_str(yaml).unwrap();
+        assert!(check.threshold.is_some());
+        let threshold = check.threshold.unwrap();
+        assert_eq!(threshold.count, 3);
+        assert_eq!(threshold.window.as_secs(), 60);
+    }
+
+    #[test]
+    fn test_rule_without_threshold() {
+        let yaml = r#"
+name: simple_error
+text: "error"
+alert: slack
+"#;
+        let rule: Rule = serde_yaml::from_str(yaml).unwrap();
+        assert!(rule.threshold.is_none());
+    }
+
+    #[test]
+    fn test_expand_file_globs_no_patterns() {
+        use std::fs::File;
+        use tempfile::TempDir;
+
+        // Create a temporary directory with test files
+        let temp_dir = TempDir::new().unwrap();
+        let file1_path = temp_dir.path().join("test1.log");
+        let file2_path = temp_dir.path().join("test2.log");
+        
+        File::create(&file1_path).unwrap();
+        File::create(&file2_path).unwrap();
+
+        let config = Config {
+            inputs: Inputs {
+                files: vec![file1_path.clone(), file2_path.clone()],
+                containers: vec![],
+                streams: vec![],
+            },
+            alerts: std::collections::HashMap::new(),
+            rules: vec![],
+            resources: None,
+            identity: Identity::default(),
+            system_checks: vec![],
+        };
+
+        let expanded = config.expand_file_globs().unwrap();
+        assert_eq!(expanded.len(), 2);
+        assert!(expanded.contains(&file1_path));
+        assert!(expanded.contains(&file2_path));
+    }
+
+    #[test]
+    fn test_expand_file_globs_with_wildcard() {
+        use std::fs::File;
+        use tempfile::TempDir;
+
+        // Create a temporary directory with test files
+        let temp_dir = TempDir::new().unwrap();
+        let file1_path = temp_dir.path().join("app1.log");
+        let file2_path = temp_dir.path().join("app2.log");
+        let file3_path = temp_dir.path().join("other.txt");
+        
+        File::create(&file1_path).unwrap();
+        File::create(&file2_path).unwrap();
+        File::create(&file3_path).unwrap();
+
+        let pattern = temp_dir.path().join("*.log");
+        
+        let config = Config {
+            inputs: Inputs {
+                files: vec![pattern],
+                containers: vec![],
+                streams: vec![],
+            },
+            alerts: std::collections::HashMap::new(),
+            rules: vec![],
+            resources: None,
+            identity: Identity::default(),
+            system_checks: vec![],
+        };
+
+        let expanded = config.expand_file_globs().unwrap();
+        assert_eq!(expanded.len(), 2);
+        assert!(expanded.contains(&file1_path));
+        assert!(expanded.contains(&file2_path));
+        assert!(!expanded.iter().any(|p| p.ends_with("other.txt")));
+    }
+
+    #[test]
+    fn test_expand_file_globs_mixed_patterns_and_files() {
+        use std::fs::File;
+        use tempfile::TempDir;
+
+        // Create a temporary directory with test files
+        let temp_dir = TempDir::new().unwrap();
+        let file1_path = temp_dir.path().join("app1.log");
+        let file2_path = temp_dir.path().join("app2.log");
+        let file3_path = temp_dir.path().join("specific.log");
+        
+        File::create(&file1_path).unwrap();
+        File::create(&file2_path).unwrap();
+        File::create(&file3_path).unwrap();
+
+        let pattern = temp_dir.path().join("app*.log");
+        
+        let config = Config {
+            inputs: Inputs {
+                files: vec![pattern, file3_path.clone()],
+                containers: vec![],
+                streams: vec![],
+            },
+            alerts: std::collections::HashMap::new(),
+            rules: vec![],
+            resources: None,
+            identity: Identity::default(),
+            system_checks: vec![],
+        };
+
+        let expanded = config.expand_file_globs().unwrap();
+        assert_eq!(expanded.len(), 3);
+        assert!(expanded.contains(&file1_path));
+        assert!(expanded.contains(&file2_path));
+        assert!(expanded.contains(&file3_path));
+    }
+
+    #[test]
+    fn test_expand_file_globs_no_matches() {
+        use tempfile::TempDir;
+
+        // Create a temporary directory with no matching files
+        let temp_dir = TempDir::new().unwrap();
+        let pattern = temp_dir.path().join("*.log");
+        
+        let config = Config {
+            inputs: Inputs {
+                files: vec![pattern],
+                containers: vec![],
+                streams: vec![],
+            },
+            alerts: std::collections::HashMap::new(),
+            rules: vec![],
+            resources: None,
+            identity: Identity::default(),
+            system_checks: vec![],
+        };
+
+        let expanded = config.expand_file_globs().unwrap();
+        assert_eq!(expanded.len(), 0);
+    }
+
+    #[test]
+    fn test_expand_file_globs_question_mark_pattern() {
+        use std::fs::File;
+        use tempfile::TempDir;
+
+        // Create a temporary directory with test files
+        let temp_dir = TempDir::new().unwrap();
+        let file1_path = temp_dir.path().join("app1.log");
+        let file2_path = temp_dir.path().join("app2.log");
+        let file3_path = temp_dir.path().join("app10.log");
+        
+        File::create(&file1_path).unwrap();
+        File::create(&file2_path).unwrap();
+        File::create(&file3_path).unwrap();
+
+        let pattern = temp_dir.path().join("app?.log");
+        
+        let config = Config {
+            inputs: Inputs {
+                files: vec![pattern],
+                containers: vec![],
+                streams: vec![],
+            },
+            alerts: std::collections::HashMap::new(),
+            rules: vec![],
+            resources: None,
+            identity: Identity::default(),
+            system_checks: vec![],
+        };
+
+        let expanded = config.expand_file_globs().unwrap();
+        assert_eq!(expanded.len(), 2);
+        assert!(expanded.contains(&file1_path));
+        assert!(expanded.contains(&file2_path));
+        assert!(!expanded.contains(&file3_path)); // app10.log has two characters
+    }
+
+    #[test]
+    fn test_expand_file_globs_bracket_pattern() {
+        use std::fs::File;
+        use tempfile::TempDir;
+
+        // Create a temporary directory with test files
+        let temp_dir = TempDir::new().unwrap();
+        let file1_path = temp_dir.path().join("app1.log");
+        let file2_path = temp_dir.path().join("app2.log");
+        let file3_path = temp_dir.path().join("app9.log");
+        
+        File::create(&file1_path).unwrap();
+        File::create(&file2_path).unwrap();
+        File::create(&file3_path).unwrap();
+
+        let pattern = temp_dir.path().join("app[12].log");
+        
+        let config = Config {
+            inputs: Inputs {
+                files: vec![pattern],
+                containers: vec![],
+                streams: vec![],
+            },
+            alerts: std::collections::HashMap::new(),
+            rules: vec![],
+            resources: None,
+            identity: Identity::default(),
+            system_checks: vec![],
+        };
+
+        let expanded = config.expand_file_globs().unwrap();
+        assert_eq!(expanded.len(), 2);
+        assert!(expanded.contains(&file1_path));
+        assert!(expanded.contains(&file2_path));
+        assert!(!expanded.contains(&file3_path));
+    }
+
+    #[test]
+    fn test_expand_file_globs_ignores_directories() {
+        use std::fs::{create_dir, File};
+        use tempfile::TempDir;
+
+        // Create a temporary directory with files and subdirectories
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("file.log");
+        let dir_path = temp_dir.path().join("dir.log");
+        
+        File::create(&file_path).unwrap();
+        create_dir(&dir_path).unwrap();
+
+        let pattern = temp_dir.path().join("*.log");
+        
+        let config = Config {
+            inputs: Inputs {
+                files: vec![pattern],
+                containers: vec![],
+                streams: vec![],
+            },
+            alerts: std::collections::HashMap::new(),
+            rules: vec![],
+            resources: None,
+            identity: Identity::default(),
+            system_checks: vec![],
+        };
+
+        let expanded = config.expand_file_globs().unwrap();
+        // Should only include the file, not the directory
+        assert_eq!(expanded.len(), 1);
+        assert!(expanded.contains(&file_path));
+        assert!(!expanded.contains(&dir_path));
+    }
+
+    #[test]
+    fn test_expand_file_globs_invalid_pattern() {
+        let config = Config {
+            inputs: Inputs {
+                files: vec![PathBuf::from("[invalid")],
+                containers: vec![],
+                streams: vec![],
+            },
+            alerts: std::collections::HashMap::new(),
+            rules: vec![],
+            resources: None,
+            identity: Identity::default(),
+            system_checks: vec![],
+        };
+
+        let result = config.expand_file_globs();
+        assert!(result.is_err());
     }
 }

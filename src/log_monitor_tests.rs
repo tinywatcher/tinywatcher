@@ -58,6 +58,7 @@ mod tests {
             alert: vec!["test-alert".to_string()],
             cooldown: 1,
             sources: None,
+            threshold: None,
         }];
         
         let monitor = LogMonitor::new(rules, Arc::new(alert_manager)).unwrap();
@@ -74,6 +75,7 @@ mod tests {
             alert: vec!["slack".to_string()],
             cooldown: 60,
             sources: None,
+            threshold: None,
         }];
         
         let result = LogMonitor::new(rules, alert_manager);
@@ -90,6 +92,7 @@ mod tests {
             alert: vec!["slack".to_string()],
             cooldown: 60,
             sources: None,
+            threshold: None,
         }];
         
         let result = LogMonitor::new(rules, alert_manager);
@@ -136,6 +139,7 @@ mod tests {
             alert: vec!["test-alert".to_string()],
             cooldown: 1,
             sources: None,
+            threshold: None,
         }];
         
         let monitor = LogMonitor::new(rules, Arc::new(alert_manager)).unwrap();
@@ -162,6 +166,7 @@ mod tests {
             alert: vec!["test-alert".to_string()],
             cooldown: 1,
             sources: None,
+            threshold: None,
         }];
         
         let monitor = LogMonitor::new(rules, Arc::new(alert_manager)).unwrap();
@@ -191,6 +196,7 @@ mod tests {
             alert: vec!["slack".to_string()],
             cooldown: 60,
             sources: None,
+            threshold: None,
         }];
         
         let monitor = LogMonitor::new(rules, alert_manager).unwrap();
@@ -216,6 +222,7 @@ mod tests {
                 containers: vec![],
                 streams: vec![],
             }),
+            threshold: None,
         }];
         
         let monitor = LogMonitor::new(rules, alert_manager).unwrap();
@@ -246,6 +253,7 @@ mod tests {
                 containers: vec!["nginx".to_string(), "api".to_string()],
                 streams: vec![],
             }),
+            threshold: None,
         }];
         
         let monitor = LogMonitor::new(rules, alert_manager).unwrap();
@@ -275,6 +283,7 @@ mod tests {
                 alert: vec!["alert1".to_string()],
                 cooldown: 1,
                 sources: None,
+            threshold: None,
             },
             Rule {
                 name: "warn_rule".to_string(),
@@ -283,6 +292,7 @@ mod tests {
                 alert: vec!["alert2".to_string()],
                 cooldown: 1,
                 sources: None,
+            threshold: None,
             },
         ];
         
@@ -326,6 +336,7 @@ mod tests {
             alert: vec!["alert1".to_string(), "alert2".to_string()],
             cooldown: 1,
             sources: None,
+            threshold: None,
         }];
         
         let monitor = LogMonitor::new(rules, Arc::new(alert_manager)).unwrap();

@@ -44,6 +44,7 @@ No agents, no databases, no complicated setup. Just one binary to deploy!
 ### **Multiple Inputs**
 
 * Tail local log files (`/var/log/nginx/error.log`)
+* **Glob patterns** — monitor multiple files with wildcards (`/var/log/app/*.log`)
 * Stream logs from Docker containers (`docker logs -f`)
 * **Real-time log streaming** (WebSocket, HTTP, TCP) — Azure, AWS, K8s, and more!
 * **Source-specific rules** — apply rules only to specific files, containers, or streams
@@ -220,6 +221,8 @@ identity:
 inputs:
   files:
     - /var/log/nginx/error.log
+    - /var/log/app/*.log           # Glob: all .log files
+    - /var/log/services/*/error.log # Glob: error.log from all services
   containers:
     - nginx
     - api
@@ -365,6 +368,44 @@ inputs:
       type: tcp
       url: "localhost:514"
 ```
+
+---
+
+## **Glob Patterns for Files (NEW!)**
+
+Monitor multiple log files with a single pattern — perfect for rotating logs and microservices!
+
+```yaml
+inputs:
+  files:
+    # All .log files in a directory
+    - "/var/log/app/*.log"
+    
+    # Rotating logs with dates
+    - "/var/log/myapp-*.log"         # myapp-2024-12-01.log, myapp-2024-12-02.log
+    
+    # Error logs from all services
+    - "/var/log/services/*/error.log"  # auth/error.log, api/error.log, worker/error.log
+    
+    # Single character wildcard
+    - "/var/log/app-?.log"           # app-1.log, app-2.log (but not app-10.log)
+    
+    # Character classes
+    - "/var/log/app-[123].log"       # app-1.log, app-2.log, app-3.log
+```
+
+**Supported patterns:**
+- `*` — Matches any characters (e.g., `*.log`)
+- `?` — Matches exactly one character (e.g., `app-?.log`)
+- `[...]` — Matches one character from set (e.g., `[0-9]` or `[abc]`)
+
+**How it works:**
+- Patterns are expanded at startup to actual files
+- Each matched file gets its own watcher
+- Only files (not directories) are monitored
+- Logs show: `INFO: Glob pattern '/var/log/app/*.log' matched 3 file(s)`
+
+See [GLOB_PATTERNS.md](GLOB_PATTERNS.md) for detailed documentation and examples.
 
 ---
 
@@ -766,7 +807,45 @@ chown $USER:$USER config.yaml
 
 ## **Examples**
 
-### 1. Test Rules Before Deploying
+### 1. Monitor Rotating Logs with Glob Patterns
+
+```yaml
+# config.yaml
+inputs:
+  files:
+    # Monitor all rotating log files
+    - "/var/log/myapp/app-*.log"
+    # Monitor error logs from all microservices
+    - "/var/log/services/*/error.log"
+
+alerts:
+  slack:
+    type: slack
+    url: "${SLACK_WEBHOOK_URL}"
+
+rules:
+  - name: errors
+    pattern: "ERROR|FATAL"
+    alert: slack
+    cooldown: 300
+```
+
+```bash
+# Check which files match your patterns
+tinywatcher check --config config.yaml
+
+# Output shows:
+# INFO: Glob pattern '/var/log/myapp/app-*.log' matched 5 file(s)
+# INFO: Glob pattern '/var/log/services/*/error.log' matched 3 file(s)
+# Starting file watch: /var/log/myapp/app-2024-12-01.log
+# Starting file watch: /var/log/myapp/app-2024-12-02.log
+# ...
+
+# Start monitoring
+tinywatcher watch --config config.yaml
+```
+
+### 2. Test Rules Before Deploying
 
 ```yaml
 # config.yaml
@@ -815,7 +894,7 @@ tinywatcher check --config config.yaml -n 200
 tinywatcher watch --config config.yaml
 ```
 
-### 2. Monitor Nginx Logs for Errors
+### 3. Monitor Nginx Logs for Errors
 
 ```yaml
 # config.yaml
@@ -840,7 +919,7 @@ rules:
 tinywatcher watch --config config.yaml
 ```
 
-### 3. Multi-Destination Critical Alerts
+### 4. Multi-Destination Critical Alerts
 
 ```yaml
 # config.yaml
@@ -891,7 +970,7 @@ resources:
 tinywatcher watch --config config.yaml
 ```
 
-### 4. Debug Your Rules
+### 5. Debug Your Rules
 
 ```bash
 # Check if your regex patterns work correctly
@@ -900,7 +979,7 @@ tinywatcher check --config config.yaml --container my-app -n 1000
 # The output will show you exactly what matched and where
 ```
 
-### 5. Production Deployment with Background Service
+### 6. Production Deployment with Background Service
 
 ```yaml
 # production-config.yaml
@@ -955,7 +1034,7 @@ journalctl --user -u tinywatcher -f
 tail -f /tmp/tinywatcher.log
 ```
 
-### 7. Complete Monitoring Stack with Health Checks
+### 8. Complete Monitoring Stack with Health Checks
 
 ```yaml
 # complete-monitoring.yaml

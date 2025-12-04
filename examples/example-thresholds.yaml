@@ -1,0 +1,133 @@
+# TinyWatcher Threshold Examples
+# Demonstrates rate-based alerting with the "X in Y" format
+
+identity:
+  name: production-server
+
+alerts:
+  team_slack:
+    type: slack
+    url: "https://hooks.slack.com/services/YOUR/TEAM/WEBHOOK"
+  
+  oncall:
+    type: slack
+    url: "https://hooks.slack.com/services/YOUR/ONCALL/WEBHOOK"
+  
+  console:
+    type: stdout
+
+inputs:
+  files:
+    - /var/log/app/application.log
+    - /var/log/nginx/error.log
+  
+  containers:
+    - api
+    - nginx
+
+# Log monitoring rules with thresholds
+rules:
+  # Alert only if we see 5 errors within 2 seconds
+  # This prevents alert fatigue from occasional errors
+  - name: error_burst
+    pattern: "ERROR"
+    threshold: "5 in 2s"
+    alert: team_slack
+    cooldown: 300
+
+  # Alert if 10 warnings occur within 1 minute
+  - name: warning_spike
+    pattern: "WARN"
+    threshold: "10 in 1m"
+    alert: team_slack
+    cooldown: 300
+
+  # Critical errors: alert immediately (no threshold)
+  - name: critical_errors
+    pattern: "CRITICAL|FATAL"
+    alert: oncall
+    cooldown: 60
+
+  # Database connection failures: 3 failures in 30 seconds
+  - name: db_connection_issues
+    pattern: "database.*connection.*failed|connection refused.*postgres"
+    threshold: "3 in 30s"
+    alert: [oncall, team_slack]
+    cooldown: 120
+
+  # Memory errors: alert if we see 2 OOM errors within 5 minutes
+  - name: memory_pressure
+    pattern: "out of memory|OOM|MemoryError"
+    threshold: "2 in 5m"
+    alert: oncall
+    cooldown: 600
+
+  # API rate limit hits: alert if 50 rate limit errors in 1 minute
+  - name: rate_limit_exceeded
+    text: "429 Too Many Requests"
+    threshold: "50 in 1m"
+    alert: team_slack
+    cooldown: 180
+
+  # Authentication failures: 20 failed logins within 30 seconds (potential attack)
+  - name: auth_attack
+    pattern: "authentication failed|invalid credentials|login failed"
+    threshold: "20 in 30s"
+    alert: [oncall, team_slack]
+    cooldown: 300
+
+  # Slow queries: alert if 100 slow queries in 5 minutes
+  - name: slow_query_burst
+    text: "slow query"
+    threshold: "100 in 5m"
+    alert: team_slack
+    cooldown: 600
+
+# Health check monitoring with thresholds
+system_checks:
+  # API health: alert if it fails 3 times within 1 minute
+  # (More sophisticated than the simple consecutive failure counter)
+  - name: api_health
+    type: http
+    url: "http://localhost:8080/health"
+    interval: 10
+    timeout: 5
+    threshold: "3 in 1m"  # Alert if 3 failures within 1 minute
+    alert: oncall
+
+  # Database health: alert if 2 failures within 30 seconds
+  - name: database_health
+    type: http
+    url: "http://localhost:5432/health"
+    interval: 15
+    timeout: 5
+    threshold: "2 in 30s"
+    alert: [oncall, team_slack]
+
+  # External API: alert if 5 failures within 5 minutes
+  - name: external_api
+    type: http
+    url: "https://api.example.com/status"
+    interval: 60
+    timeout: 10
+    threshold: "5 in 5m"
+    alert: team_slack
+
+  # Critical service: use old-style consecutive failure threshold
+  - name: payment_gateway
+    type: http
+    url: "https://payments.example.com/health"
+    interval: 30
+    timeout: 5
+    missed_threshold: 2  # Alert after 2 consecutive failures
+    alert: oncall
+
+# System resource monitoring (no threshold support yet, but coming soon!)
+resources:
+  interval: 10
+  thresholds:
+    cpu_percent: 85
+    memory_percent: 80
+    disk_percent: 90
+    alert: team_slack
+

@@ -192,8 +192,12 @@ async fn handle_watch(
                 .context("Failed to create log monitor")?,
         );
 
+        // Expand glob patterns in file paths
+        let expanded_files = config.expand_file_globs()
+            .context("Failed to expand file glob patterns")?;
+
         // Watch files
-        for file in config.inputs.files {
+        for file in expanded_files {
             let monitor = log_monitor.clone();
             let file_clone = file.clone();
             tasks.push(tokio::spawn(async move {
@@ -257,6 +261,7 @@ async fn handle_watch(
                 timeout_secs: sc.timeout,
                 missed_threshold: sc.missed_threshold,
                 alert: sc.alert.clone(),
+                threshold: sc.threshold.clone(),
             })
             .collect();
 

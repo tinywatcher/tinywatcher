@@ -1,7 +1,10 @@
 use crate::alerts::AlertManager;
+use crate::config::Threshold;
 use anyhow::{Context, Result};
+use std::collections::VecDeque;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
+use tokio::sync::Mutex;
 use tokio::time::interval;
 
 /// Initial retry delay
@@ -19,6 +22,7 @@ pub struct HealthCheck {
     pub timeout_secs: u64,     // request timeout
     pub missed_threshold: u32, // how many failures before alert
     pub alert: Vec<String>,    // alert names to trigger
+    pub threshold: Option<Threshold>, // optional rate-based threshold (e.g., "3 in 1m")
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -91,18 +95,27 @@ impl HealthMonitor {
         alert_manager: Arc<AlertManager>,
         identity: String,
     ) {
+        let threshold_info = if let Some(ref t) = check.threshold {
+            format!("threshold: {} in {:?}", t.count, t.window)
+        } else {
+            format!("threshold: {} consecutive", check.missed_threshold)
+        };
+
         tracing::info!(
-            "Starting health check '{}' for {} (interval: {}s, timeout: {}s, threshold: {})",
+            "Starting health check '{}' for {} (interval: {}s, timeout: {}s, {})",
             check.name,
             check.url,
             check.interval,
             check.timeout_secs,
-            check.missed_threshold
+            threshold_info
         );
 
         let mut interval_timer = interval(Duration::from_secs(check.interval));
         let mut consecutive_failures = 0u32;
         let mut is_down = false;
+        
+        // For sliding window threshold tracking
+        let failure_history: Arc<Mutex<VecDeque<Instant>>> = Arc::new(Mutex::new(VecDeque::new()));
 
         loop {
             interval_timer.tick().await;
@@ -111,51 +124,72 @@ impl HealthMonitor {
                 Ok(()) => {
                     // Check succeeded
                     if is_down {
-                    // Service recovered
-                    tracing::info!("Health check '{}' recovered: {}", check.name, check.url);
-                    
-                    let message = format!(
-                        "Service '{}' is back UP\n\
-                        Identity: {}\n\
-                        URL: {}\n\
-                        Status: Healthy",
-                        check.name,
-                        identity,
-                        check.url
-                    );
+                        // Service recovered
+                        tracing::info!("Health check '{}' recovered: {}", check.name, check.url);
+                        
+                        let message = format!(
+                            "Service '{}' is back UP\n\
+                            Identity: {}\n\
+                            URL: {}\n\
+                            Status: Healthy",
+                            check.name,
+                            identity,
+                            check.url
+                        );
 
-                    if let Err(e) = alert_manager.send_alert_multi(&check.alert, &check.name, &message, 0).await {
-                        tracing::error!("Failed to send recovery alert for '{}': {}", check.name, e);
-                    }                        is_down = false;
+                        if let Err(e) = alert_manager.send_alert_multi(&check.alert, &check.name, &message, 0).await {
+                            tracing::error!("Failed to send recovery alert for '{}': {}", check.name, e);
+                        }
+                        is_down = false;
                     }
                     consecutive_failures = 0;
+                    
+                    // Clear failure history on success
+                    if check.threshold.is_some() {
+                        failure_history.lock().await.clear();
+                    }
+                    
                     tracing::debug!("Health check '{}' passed", check.name);
                 }
                 Err(e) => {
                     // Check failed
                     consecutive_failures += 1;
+                    
+                    // Determine if we should alert based on threshold type
+                    let should_alert = if let Some(ref threshold) = check.threshold {
+                        // Use sliding window threshold
+                        Self::check_failure_threshold(&failure_history, threshold, &check.name).await
+                    } else {
+                        // Use consecutive failure threshold
+                        consecutive_failures >= check.missed_threshold
+                    };
+                    
                     tracing::warn!(
-                        "Health check '{}' failed ({}/{}): {}",
+                        "Health check '{}' failed: {}",
                         check.name,
-                        consecutive_failures,
-                        check.missed_threshold,
                         e
                     );
 
-                    if consecutive_failures >= check.missed_threshold && !is_down {
+                    if should_alert && !is_down {
                         // Threshold reached, send alert
                         is_down = true;
+                        
+                        let failure_info = if let Some(ref threshold) = check.threshold {
+                            format!("{} failures in {:?}", threshold.count, threshold.window)
+                        } else {
+                            format!("{} consecutive failures", consecutive_failures)
+                        };
                         
                         let message = format!(
                             "Service '{}' is DOWN\n\
                             Identity: {}\n\
                             URL: {}\n\
-                            Failed checks: {}\n\
+                            Threshold: {}\n\
                             Error: {}",
                             check.name,
                             identity,
                             check.url,
-                            consecutive_failures,
+                            failure_info,
                             e
                         );
 
@@ -165,6 +199,53 @@ impl HealthMonitor {
                     }
                 }
             }
+        }
+    }
+
+    /// Check if failure threshold is exceeded using sliding window
+    /// Returns true if we should send an alert
+    async fn check_failure_threshold(
+        failure_history: &Arc<Mutex<VecDeque<Instant>>>,
+        threshold: &Threshold,
+        check_name: &str,
+    ) -> bool {
+        let now = Instant::now();
+        let mut history = failure_history.lock().await;
+        
+        // Add current failure
+        history.push_back(now);
+        
+        // Remove old failures outside the time window
+        let cutoff = now - threshold.window;
+        while let Some(&oldest) = history.front() {
+            if oldest < cutoff {
+                history.pop_front();
+            } else {
+                break;
+            }
+        }
+        
+        // Check if threshold is exceeded
+        let count = history.len();
+        if count >= threshold.count as usize {
+            tracing::info!(
+                "Health check threshold exceeded for '{}': {} failures in {:?}",
+                check_name,
+                count,
+                threshold.window
+            );
+            // Clear history after alerting to avoid repeated alerts
+            history.clear();
+            true
+        } else {
+            tracing::debug!(
+                "Health check '{}' failed but threshold not reached: {}/{} in {:?}",
+                check_name,
+                count,
+                threshold.count,
+                threshold.window
+            );
+            false
         }
     }
 
