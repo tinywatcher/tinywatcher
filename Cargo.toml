@@ -1,6 +1,6 @@
 [package]
 name = "tinywatcher"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 authors = ["Alex Nemeth <alex@alexnemethdata.com>"]
 description = "A tiny, zero-infrastructure observability tool for logs and system resources"
