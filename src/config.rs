@@ -420,3 +420,8 @@ impl Rule {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "config_tests.rs"]
+mod tests;
+

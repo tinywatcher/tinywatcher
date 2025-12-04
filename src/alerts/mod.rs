@@ -116,3 +116,6 @@ impl AlertManager {
         true
     }
 }
+
+#[cfg(test)]
+mod mod_tests;

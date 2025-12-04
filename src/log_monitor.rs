@@ -347,3 +347,7 @@ impl LogMonitor {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "log_monitor_tests.rs"]
+mod tests;

@@ -196,3 +196,7 @@ impl HealthMonitor {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "health_monitor_tests.rs"]
+mod tests;
