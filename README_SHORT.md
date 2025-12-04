@@ -5,6 +5,14 @@
 </p>
 
 <p align="center">
+  <img src="https://img.shields.io/badge/version-0.2.0-blue.svg" alt="Version">
+  <img src="https://img.shields.io/badge/binary-<10MB-green.svg" alt="Binary Size">
+  <img src="https://img.shields.io/badge/built%20with-Rust-orange.svg" alt="Built with Rust">
+  <img src="https://img.shields.io/badge/license-MIT-brightgreen.svg" alt="MIT License">
+  <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg" alt="Platform Support">
+</p>
+
+<p align="center">
   <strong>A tiny, cross-platform observability tool for logs and system resources. Zero infrastructure required.</strong>
 </p>
 
@@ -12,6 +20,7 @@
   <a href="https://tinywatcher.com">Website</a> •
   <a href="https://tinywatcher.com/docs">Documentation</a> •
   <a href="https://tinywatcher.com/getting-started">Getting Started</a> •
+  <a href="https://tinywatcher.com/config-builder">Config Builder</a> •
   <a href="https://tinywatcher.com/heartbeat">Heartbeat</a>
 </p>
 
