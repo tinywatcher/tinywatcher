@@ -20,3 +20,4 @@ config.yaml
 *.local.yaml
 
 file.yaml
+simple.yaml
