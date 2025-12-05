@@ -104,6 +104,14 @@ pub struct Config {
     pub identity: Identity,
     #[serde(default)]
     pub system_checks: Vec<SystemCheck>,
+    pub heartbeat: Option<HeartbeatConfig>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct HeartbeatConfig {
+    pub url: String,
+    #[serde(default = "default_heartbeat_interval")]
+    pub interval: u64,  // seconds
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -347,6 +355,10 @@ fn default_missed_threshold() -> u32 {
     2
 }
 
+fn default_heartbeat_interval() -> u64 {
+    60
+}
+
 impl Config {
     pub fn from_file(path: &str) -> anyhow::Result<Self> {
         let content = std::fs::read_to_string(path)?;
@@ -467,6 +479,11 @@ impl Config {
         // Expand in system checks
         for check in &mut self.system_checks {
             check.url = expand_env_vars(&check.url);
+        }
+
+        // Expand in heartbeat
+        if let Some(heartbeat) = &mut self.heartbeat {
+            heartbeat.url = expand_env_vars(&heartbeat.url);
         }
 
         // Expand in identity

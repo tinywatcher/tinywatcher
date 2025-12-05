@@ -3,6 +3,7 @@ mod cli;
 mod config;
 mod daemon;
 mod health_monitor;
+mod heartbeat_monitor;
 mod log_monitor;
 mod resource_monitor;
 mod stream_monitor;
@@ -96,7 +97,7 @@ async fn handle_watch(
     }
 
     let identity = config.identity.get_name();
-    tracing::info!("🚀 Starting TinyWatcher (identity: {})...", identity);
+    tracing::info!("Starting TinyWatcher (identity: {})...", identity);
 
     // Create alert manager and register handlers
     let mut alert_manager = AlertManager::new(identity.clone());
@@ -284,6 +285,24 @@ async fn handle_watch(
         }));
     }
 
+    // Start heartbeat monitoring
+    if let Some(heartbeat_config) = config.heartbeat {
+        tracing::info!(
+            "Heartbeat monitoring enabled (interval: {}s)", 
+            heartbeat_config.interval
+        );
+        
+        let heartbeat_monitor = heartbeat_monitor::HeartbeatMonitor::new(
+            heartbeat_config.url,
+            heartbeat_config.interval,
+            identity.clone(),
+        );
+        
+        tasks.push(tokio::spawn(async move {
+            heartbeat_monitor.start().await;
+        }));
+    }
+
     // Wait for all tasks
     if tasks.is_empty() {
         tracing::error!("No monitoring tasks started!");
@@ -295,14 +314,14 @@ async fn handle_watch(
         anyhow::bail!("Nothing to monitor");
     }
 
-    tracing::info!(" TinyWatcher is running. Press Ctrl+C to stop.");
+    tracing::info!("▶ TinyWatcher is running. Press Ctrl+C to stop.");
 
     // Wait for Ctrl+C signal
     tokio::signal::ctrl_c()
         .await
         .context("Failed to listen for Ctrl+C")?;
 
-    tracing::info!(" Received shutdown signal, stopping all monitors...");
+    tracing::info!("⏹ Received shutdown signal, stopping all monitors...");
 
     // Abort all tasks
     for task in tasks {
@@ -724,10 +743,77 @@ fn validate_config(config: &Config) -> Result<()> {
         stdout.reset()?;
     }
 
+    // Validate heartbeat configuration
+    stdout.set_color(ColorSpec::new().set_fg(Some(Color::Cyan)).set_bold(true))?;
+    writeln!(&mut stdout, "\nHEARTBEAT MONITORING")?;
+    stdout.reset()?;
+    
+    if let Some(heartbeat) = &config.heartbeat {
+        stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+        write!(&mut stdout, "  URL: ")?;
+        stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)))?;
+        writeln!(&mut stdout, "{}", heartbeat.url)?;
+        stdout.reset()?;
+        
+        stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+        write!(&mut stdout, "  Interval: ")?;
+        stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)))?;
+        writeln!(&mut stdout, "{}s", heartbeat.interval)?;
+        stdout.reset()?;
+        
+        // Validate URL format
+        if heartbeat.url.is_empty() {
+            write!(&mut stdout, "  ")?;
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::Red)).set_bold(true))?;
+            write!(&mut stdout, "[ERROR]")?;
+            stdout.reset()?;
+            writeln!(&mut stdout, " Heartbeat URL cannot be empty")?;
+            anyhow::bail!("Heartbeat URL is required");
+        }
+        
+        // Validate URL is a valid HTTP/HTTPS URL
+        if !heartbeat.url.starts_with("http://") && !heartbeat.url.starts_with("https://") {
+            write!(&mut stdout, "  ")?;
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::Red)).set_bold(true))?;
+            write!(&mut stdout, "[ERROR]")?;
+            stdout.reset()?;
+            writeln!(&mut stdout, " Heartbeat URL must start with http:// or https://")?;
+            anyhow::bail!("Invalid heartbeat URL format: must be HTTP or HTTPS");
+        }
+        
+        // Validate interval is reasonable
+        if heartbeat.interval == 0 {
+            write!(&mut stdout, "  ")?;
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::Red)).set_bold(true))?;
+            write!(&mut stdout, "[ERROR]")?;
+            stdout.reset()?;
+            writeln!(&mut stdout, " Heartbeat interval must be greater than 0")?;
+            anyhow::bail!("Invalid heartbeat interval: must be > 0");
+        }
+        
+        if heartbeat.interval < 10 {
+            write!(&mut stdout, "  ")?;
+            stdout.set_color(ColorSpec::new().set_fg(Some(Color::Yellow)).set_bold(true))?;
+            write!(&mut stdout, "[WARNING]")?;
+            stdout.reset()?;
+            writeln!(&mut stdout, " Heartbeat interval is very short ({}s). Recommended: 30s or higher", heartbeat.interval)?;
+        }
+        
+        write!(&mut stdout, "  ")?;
+        stdout.set_color(ColorSpec::new().set_fg(Some(Color::Green)))?;
+        write!(&mut stdout, "[OK]")?;
+        stdout.reset()?;
+        writeln!(&mut stdout, " Heartbeat configuration is valid")?;
+    } else {
+        stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+        writeln!(&mut stdout, "  Not configured")?;
+        stdout.reset()?;
+    }
+
     // Final success message
     writeln!(&mut stdout)?;
     stdout.set_color(ColorSpec::new().set_fg(Some(Color::Green)).set_bold(true))?;
-    writeln!(&mut stdout, "Configuration is valid!")?;
+    writeln!(&mut stdout, "✓ Configuration is valid!")?;
     stdout.reset()?;
 
     Ok(())
@@ -934,14 +1020,32 @@ fn handle_start(config_path: Option<std::path::PathBuf>) -> Result<()> {
     
     match status {
         daemon::ServiceStatus::Running => {
-            stdout.set_color(ColorSpec::new().set_fg(Some(Color::Blue)))?;
-            write!(&mut stdout, "ℹ")?;
-            stdout.reset()?;
-            writeln!(&mut stdout, " TinyWatcher is already running")?;
-            
-            stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
-            writeln!(&mut stdout, "  Use 'tinywatcher restart' to restart the service")?;
-            stdout.reset()?;
+            // If a new config is provided, suggest restart
+            if config_path.is_some() {
+                stdout.set_color(ColorSpec::new().set_fg(Some(Color::Yellow)))?;
+                write!(&mut stdout, "⚠")?;
+                stdout.reset()?;
+                writeln!(&mut stdout, " TinyWatcher is already running")?;
+                writeln!(&mut stdout)?;
+                
+                stdout.set_color(ColorSpec::new().set_fg(Some(Color::Cyan)))?;
+                write!(&mut stdout, "ℹ")?;
+                stdout.reset()?;
+                writeln!(&mut stdout, " To update the configuration, stop and start the service:")?;
+                stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+                writeln!(&mut stdout, "  1. tinywatcher stop")?;
+                writeln!(&mut stdout, "  2. tinywatcher start --config <new-config>")?;
+                stdout.reset()?;
+            } else {
+                stdout.set_color(ColorSpec::new().set_fg(Some(Color::Blue)))?;
+                write!(&mut stdout, "ℹ")?;
+                stdout.reset()?;
+                writeln!(&mut stdout, " TinyWatcher is already running")?;
+                
+                stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+                writeln!(&mut stdout, "  Use 'tinywatcher restart' to restart the service")?;
+                stdout.reset()?;
+            }
             
             Ok(())
         }
@@ -1019,6 +1123,70 @@ fn handle_start(config_path: Option<std::path::PathBuf>) -> Result<()> {
         }
         daemon::ServiceStatus::Stopped => {
             // Service is installed but not running
+            
+            // If a new config is provided, reinstall with the new config
+            if config_path.is_some() {
+                stdout.set_color(ColorSpec::new().set_fg(Some(Color::Cyan)))?;
+                write!(&mut stdout, "ℹ")?;
+                stdout.reset()?;
+                writeln!(&mut stdout, " New config provided, reinstalling service...")?;
+                writeln!(&mut stdout)?;
+                
+                // Load and validate the new config
+                let config = config_path.as_ref().unwrap();
+                if !config.exists() {
+                    anyhow::bail!("Configuration file not found: {}", config.display());
+                }
+                
+                let cfg = Config::from_file(config.to_str().context("Invalid config path")?)?;
+                
+                // Check if files need elevated privileges
+                let files_need_elevation = if !cfg.inputs.files.is_empty() {
+                    match daemon::any_file_needs_elevation(&cfg.inputs.files) {
+                        Ok(needs_root) => {
+                            if needs_root {
+                                let protected_files = daemon::get_files_needing_elevation(&cfg.inputs.files)?;
+                                stdout.set_color(ColorSpec::new().set_fg(Some(Color::Yellow)))?;
+                                write!(&mut stdout, "  ⚠")?;
+                                stdout.reset()?;
+                                writeln!(&mut stdout, " Detected root/admin-owned log files:")?;
+                                
+                                for file in &protected_files {
+                                    stdout.set_color(ColorSpec::new().set_fg(Some(Color::White)).set_dimmed(true))?;
+                                    writeln!(&mut stdout, "    - {}", file.display())?;
+                                    stdout.reset()?;
+                                }
+                                writeln!(&mut stdout)?;
+                            }
+                            needs_root
+                        }
+                        Err(e) => {
+                            tracing::warn!("Failed to check file permissions: {}", e);
+                            false
+                        }
+                    }
+                } else {
+                    false
+                };
+                
+                // Determine if we need elevation
+                let needs_elevation = if running_as_root {
+                    stdout.set_color(ColorSpec::new().set_fg(Some(Color::Cyan)))?;
+                    write!(&mut stdout, "  ℹ")?;
+                    stdout.reset()?;
+                    writeln!(&mut stdout, " Running with sudo - will install as system service (LaunchDaemon)")?;
+                    writeln!(&mut stdout)?;
+                    true
+                } else {
+                    // Use file check results - don't automatically upgrade to system service
+                    // just because one exists. Only use elevation if files actually need it.
+                    files_need_elevation
+                };
+                
+                manager.install(config_path, needs_elevation)?;
+                return Ok(());
+            }
+            
             // Check if the installed service type matches the current privilege level
             #[cfg(any(target_os = "macos", target_os = "linux"))]
             if (running_as_root && user_service_installed && !system_service_installed) || (!running_as_root && system_service_installed && !user_service_installed) {

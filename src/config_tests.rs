@@ -601,6 +601,7 @@ alert: slack
             resources: None,
             identity: Identity::default(),
             system_checks: vec![],
+            heartbeat: None,
         };
 
         let expanded = config.expand_file_globs().unwrap();
@@ -637,6 +638,7 @@ alert: slack
             resources: None,
             identity: Identity::default(),
             system_checks: vec![],
+            heartbeat: None,
         };
 
         let expanded = config.expand_file_globs().unwrap();
@@ -674,6 +676,7 @@ alert: slack
             resources: None,
             identity: Identity::default(),
             system_checks: vec![],
+            heartbeat: None,
         };
 
         let expanded = config.expand_file_globs().unwrap();
@@ -702,6 +705,7 @@ alert: slack
             resources: None,
             identity: Identity::default(),
             system_checks: vec![],
+            heartbeat: None,
         };
 
         let expanded = config.expand_file_globs().unwrap();
@@ -736,6 +740,7 @@ alert: slack
             resources: None,
             identity: Identity::default(),
             system_checks: vec![],
+            heartbeat: None,
         };
 
         let expanded = config.expand_file_globs().unwrap();
@@ -773,6 +778,7 @@ alert: slack
             resources: None,
             identity: Identity::default(),
             system_checks: vec![],
+            heartbeat: None,
         };
 
         let expanded = config.expand_file_globs().unwrap();
@@ -808,6 +814,7 @@ alert: slack
             resources: None,
             identity: Identity::default(),
             system_checks: vec![],
+            heartbeat: None,
         };
 
         let expanded = config.expand_file_globs().unwrap();
@@ -830,9 +837,119 @@ alert: slack
             resources: None,
             identity: Identity::default(),
             system_checks: vec![],
+            heartbeat: None,
         };
 
         let result = config.expand_file_globs();
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_heartbeat_config_deserialization() {
+        let yaml = r#"
+inputs:
+  files:
+    - /var/log/app.log
+
+alerts:
+  test:
+    type: stdout
+
+rules:
+  - name: errors
+    pattern: ERROR
+    alert: test
+
+heartbeat:
+  url: "https://heartbeat.example.com/ping/abc123"
+  interval: 60
+"#;
+
+        let config: Config = serde_yaml::from_str(yaml).unwrap();
+        assert!(config.heartbeat.is_some());
+        let heartbeat = config.heartbeat.unwrap();
+        assert_eq!(heartbeat.url, "https://heartbeat.example.com/ping/abc123");
+        assert_eq!(heartbeat.interval, 60);
+    }
+
+    #[test]
+    fn test_heartbeat_config_default_interval() {
+        let yaml = r#"
+inputs:
+  files:
+    - /var/log/app.log
+
+alerts:
+  test:
+    type: stdout
+
+rules:
+  - name: errors
+    pattern: ERROR
+    alert: test
+
+heartbeat:
+  url: "https://heartbeat.example.com/ping/abc123"
+"#;
+
+        let config: Config = serde_yaml::from_str(yaml).unwrap();
+        assert!(config.heartbeat.is_some());
+        let heartbeat = config.heartbeat.unwrap();
+        assert_eq!(heartbeat.interval, 60); // Default value
+    }
+
+    #[test]
+    fn test_heartbeat_config_optional() {
+        let yaml = r#"
+inputs:
+  files:
+    - /var/log/app.log
+
+alerts:
+  test:
+    type: stdout
+
+rules:
+  - name: errors
+    pattern: ERROR
+    alert: test
+"#;
+
+        let config: Config = serde_yaml::from_str(yaml).unwrap();
+        assert!(config.heartbeat.is_none());
+    }
+
+    #[test]
+    fn test_heartbeat_config_env_var_expansion() {
+        std::env::set_var("HEARTBEAT_URL", "https://heartbeat.example.com/ping/xyz");
+        
+        let yaml = r#"
+inputs:
+  files:
+    - /var/log/app.log
+
+alerts:
+  test:
+    type: stdout
+
+rules:
+  - name: errors
+    pattern: ERROR
+    alert: test
+
+heartbeat:
+  url: "${HEARTBEAT_URL}"
+  interval: 30
+"#;
+
+        let mut config: Config = serde_yaml::from_str(yaml).unwrap();
+        config.expand_env_vars();
+        
+        assert!(config.heartbeat.is_some());
+        let heartbeat = config.heartbeat.unwrap();
+        assert_eq!(heartbeat.url, "https://heartbeat.example.com/ping/xyz");
+        assert_eq!(heartbeat.interval, 30);
+        
+        std::env::remove_var("HEARTBEAT_URL");
     }
 }

@@ -12,9 +12,17 @@
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg" alt="Platform Support">
 </p>
 
-**A free, open-source (MIT licensed) lightweight, single-binary log and system monitor designed for developers who need simple, actionable alerts without the complexity or cost of enterprise observability stacks.**
+
+
+**A free, open-source, lightweight, single-binary log and system monitor designed for developers who need simple, actionable alerts without the complexity or cost of enterprise observability stacks.**
 
 ✨ **100% Free Forever** • **MIT Licensed** • **No Vendor Lock-in**
+
+![TinyWatcher Demo](tinywatcher-demo.gif)
+
+*Demo showing real-time Slack alerts from TinyWatcher monitoring a log file, followed by the test suite validating config and rule matching on real logs.*
+
+
 
 > "Finally, observability without the dashboards, agents, or cloud lock-in."
 
