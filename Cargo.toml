@@ -1,3 +1,7 @@
+[workspace]
+members = [".", "logstorm"]
+resolver = "2"
+
 [package]
 name = "tinywatcher"
 version = "0.2.0"

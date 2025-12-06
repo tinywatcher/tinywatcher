@@ -1218,6 +1218,37 @@ tinywatcher test --config config.yaml
 
 ---
 
+## **Development & Testing**
+
+### **Logstorm - Stress Testing Tool**
+
+TinyWatcher includes `logstorm`, a high-performance log generator for stress testing:
+
+```bash
+# Build the workspace
+cargo build --release
+
+# Generate 50,000 lines/sec for stress testing
+./target/release/logstorm --rate 50000 --duration 5 --output /tmp/stress.log --stats
+
+# Generate complex patterns (stack traces, SQL, URLs, IPs)
+./target/release/logstorm --rate 10000 --complex-patterns --line-size xl --output /tmp/complex.log
+
+# Run comprehensive test suite
+./test-logstorm.sh
+```
+
+**Features:**
+- **High throughput**: Tested at 50,000+ logs/sec
+- **Variable line sizes**: short, medium, long, xl, variable
+- **Complex patterns**: Stack traces, SQL queries, URLs, IPs for regex testing
+- **Burst mode**: Simulate traffic spikes
+- **Multiple formats**: Text, JSON, Apache, Nginx logs
+
+See [`logstorm/README.md`](logstorm/README.md) for full documentation.
+
+---
+
 ## **License**
 
 MIT

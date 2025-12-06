@@ -1,0 +1,65 @@
+# Logstorm stress test configuration for tinywatcher
+# This config tests various regex patterns against high-volume logs
+
+inputs:
+  files:
+    - /tmp/stress-50k.log
+    - /tmp/complex-patterns.log
+
+alerts:
+  console:
+    type: stdout
+
+rules:
+  # Basic error detection
+  - name: errors
+    pattern: "ERROR"
+    alert: console
+    cooldown: 5
+
+  - name: critical_errors
+    pattern: "CRITICAL"
+    alert: console
+    cooldown: 5
+
+  # Exception patterns
+  - name: exceptions
+    pattern: "Exception"
+    alert: console
+    cooldown: 10
+
+  # SQL query detection
+  - name: sql_queries
+    pattern: "SELECT .* FROM"
+    alert: console
+    cooldown: 10
+
+  # Memory issues
+  - name: out_of_memory
+    pattern: "OutOfMemoryError"
+    alert: console
+    cooldown: 5
+
+  # Connection failures
+  - name: connection_issues
+    pattern: "ConnectionRefused|Timeout"
+    alert: console
+    cooldown: 5
+
+  # IP address pattern detection (simplified)
+  - name: ip_addresses
+    pattern: "ip="
+    alert: console
+    cooldown: 30
+
+  # URL pattern detection
+  - name: urls
+    pattern: "https://api"
+    alert: console
+    cooldown: 30
+
+  # Stack trace detection
+  - name: stack_traces
+    pattern: "at com.example"
+    alert: console
+    cooldown: 10
