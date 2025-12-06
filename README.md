@@ -5,7 +5,7 @@
 # TinyWatcher 
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.2.0-blue.svg" alt="Version">
+  <img src="https://img.shields.io/badge/version-0.2.1-blue.svg" alt="Version">
   <img src="https://img.shields.io/badge/binary-<10MB-green.svg" alt="Binary Size">
   <img src="https://img.shields.io/badge/built%20with-Rust-orange.svg" alt="Built with Rust">
   <img src="https://img.shields.io/badge/license-MIT-brightgreen.svg" alt="MIT License">

@@ -5,6 +5,28 @@ All notable changes to TinyWatcher will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2025-12-06
+
+### Added
+- **Logstorm Stress Testing Tool** - High-performance log generator sub-crate for testing tinywatcher
+  - Generate up to 50,000+ logs per second with verified performance
+  - Variable line sizes (short, medium, long, xl, variable) for comprehensive regex testing
+  - Complex pattern generation: stack traces, SQL queries, HTTP URLs, IP addresses, JSON payloads
+  - Burst mode for simulating traffic spikes
+  - Multiple log formats: text, JSON, Apache, Nginx
+  - Configurable error rates and batch sizes
+  - Real-time statistics display
+- **Workspace Structure** - Reorganized as Cargo workspace with main package at root
+  - Maintains backward compatibility with `cargo install tinywatcher`
+  - Logstorm available as separate workspace member (`cargo build -p logstorm`)
+- **Example Configurations** - Added `examples/logstorm-stress-test.yaml` for testing workflows
+- **Test Scripts** - Automated stress testing script (`test-logstorm.sh`)
+
+### Changed
+- Project restructured as Cargo workspace while maintaining crates.io compatibility
+- Enhanced development workflow with dedicated stress testing tools
+- Improved documentation with logstorm usage examples
+
 ## [0.2.0] - 2025-12-04
 
 ### Added

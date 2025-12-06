@@ -1,6 +1,6 @@
 [package]
 name = "logstorm"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 authors = ["Alex Nemeth <alex@alexnemethdata.com>"]
 description = "High-performance log generator for stress testing tinywatcher"
